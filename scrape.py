@@ -12,6 +12,10 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
+import matplotlib.font_manager
+
+# 强制刷新字体缓存，确保 CI 新装字体能被识别
+matplotlib.font_manager._load_fontmanager(try_read_cache=False)
 
 # ============ 配置 ============
 URL_TEAM1 = "https://y.qq.com/tmead/promotion/h5/team-activity/detail?_hidehd=1&_miniplayer=1&adtag=sszd&singerId=6665073&activityId=17931826095559&searchid=113943832761792946,&hosteuin=ow657wSlownlon**&ADTAG=wxfshare"
@@ -213,7 +217,8 @@ def generate_chart(target_date, save_path, is_final=False):
 
     hours = list(range(0, 25))
 
-    plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "Arial Unicode MS", "DejaVu Sans"]
+    # Linux CI 优先用 WenQuanYi Zen Hei，Windows 本地回退到微软雅黑等
+    plt.rcParams["font.sans-serif"] = ["WenQuanYi Zen Hei", "Microsoft YaHei", "SimHei", "Arial Unicode MS", "DejaVu Sans"]
     plt.rcParams["axes.unicode_minus"] = False
 
     fig, axes = plt.subplots(2, 1, figsize=(14, 10), sharex=True)
