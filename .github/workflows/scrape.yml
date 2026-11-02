@@ -2,8 +2,8 @@ name: 自动抓取电力数据
 
 on:
   schedule:
-    # 每小时整点运行（UTC 时间）。GitHub Actions 调度有几分钟延迟，属正常现象。
-    - cron: '0 * * * *'
+    # 每 5 分钟运行一次
+    - cron: '*/5 * * * *'
   workflow_dispatch:  # 保留手动触发按钮，方便调试
 
 jobs:
@@ -16,8 +16,8 @@ jobs:
       - name: 拉取代码
         uses: actions/checkout@v5
         with:
-          ref: ${{ github.ref_name }}   # 明确签出触发分支，避免 detached HEAD
-          fetch-depth: 0                # 完整历史，便于 commit/push
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
 
       - name: 设置 Python
         uses: actions/setup-python@v6
@@ -46,16 +46,12 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # 只添加目标文件，避免把无关变更带进来
           git add power_data.csv chart.png
 
-          # 没有变更就跳过 commit
           if git diff --staged --quiet; then
             echo "没有数据变更，跳过提交。"
             exit 0
           fi
 
           git commit -m "自动更新数据 $(date -u '+%Y-%m-%d %H:%M')"
-
-          # 明确推送到触发分支，避免 detached HEAD 导致 exit code 128
           git push origin HEAD:${{ github.ref_name }}
