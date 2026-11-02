@@ -43,9 +43,18 @@ async def scrape_team(page, url):
 
     result = {"今日心动人数": None, "团建电力值": None}
 
-    # 直接等 .stats-value .value 出现，拿到就是数字文本
+    # 调试：看页面到底加载了什么
     try:
-        await page.wait_for_selector(".stats-value .value", timeout=15000)
+        body_text = await page.locator("body").inner_text()
+        print(f"[debug] team body 前 800 字: {body_text[:800]}")
+        count = await page.locator(".stats-value .value").count()
+        print(f"[debug] .stats-value .value 数量: {count}")
+    except Exception as e:
+        print(f"[debug] 读取页面失败: {e}")
+
+    # 临时把超时放大到 45 秒，排除“只是慢”的可能
+    try:
+        await page.wait_for_selector(".stats-value .value", timeout=45000)
         value_text = await page.locator(".stats-value .value").first.inner_text()
         print(f"[debug] 心动人数原始文本: {value_text!r}")
         result["今日心动人数"] = parse_num(value_text)
@@ -234,7 +243,8 @@ def generate_chart(target_date, save_path, is_final=False):
 
     hours = list(range(0, 25))
 
-    plt.rcParams["font.sans-serif"] = ["WenQuanYi Micro Hei", "WenQuanYi Zen Hei", "Microsoft YaHei", "SimHei",
+    # 文泉驿正黑带粗体，放第一位；其余作为回退
+    plt.rcParams["font.sans-serif"] = ["WenQuanYi Zen Hei", "WenQuanYi Micro Hei", "Microsoft YaHei", "SimHei",
                                        "Arial Unicode MS", "DejaVu Sans"]
     plt.rcParams["axes.unicode_minus"] = False
 
