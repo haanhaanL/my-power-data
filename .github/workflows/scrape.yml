@@ -42,8 +42,6 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: playwright install --with-deps chromium
 
-      # ⭐ 已删除原版的 "安装中文字体" 步骤，直接使用系统自带字体，大幅提速！
-      
       - name: 运行抓取脚本
         run: python scrape.py
 
@@ -60,16 +58,20 @@ jobs:
           
           git commit -m "自动更新数据 $(date -u '+%Y-%m-%d %H:%M')"
 
-          # 重试推送机制，防止并发冲突
-          for i in 1 2 3; do
+          # 你原版的防冲突重试机制，完美保留
+          for i in 1 2 3 4 5; do
             if git push origin HEAD:${{ github.ref_name }}; then
               echo "push 成功"
               exit 0
             fi
             echo "push 失败，第 $i 次重试..."
-            git pull --rebase origin ${{ github.ref_name }} || true
-            sleep 3
+            git pull --rebase origin ${{ github.ref_name }}
+            if [ $? -ne 0 ]; then
+              git checkout --ours power_data.csv chart.png 2>/dev/null || true
+              git add power_data.csv chart.png 2>/dev/null || true
+              git rebase --continue 2>/dev/null || true
+            fi
+            sleep $((i * 3))
           done
-          
-          echo "重试 3 次后仍失败"
+          echo "重试 5 次后仍失败"
           exit 1
