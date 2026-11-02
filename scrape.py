@@ -29,6 +29,11 @@ CHART_FILE = os.path.join(BASE_DIR, "chart.png")
 # 北京时间 UTC+8
 BJT = timezone(timedelta(hours=8))
 
+# 每小时记录点：58 分。延迟到下一小时 0x 分也视为同一记录点。
+RECORD_MINUTE = 58
+LATE_TOLERANCE = 10   # 58 分任务延迟到下一小时 10 分内仍算该小时
+EARLY_TOLERANCE = 10  # 58 分任务提前到 50 分内也算该小时
+
 
 # ============ 抓取与存储 ============
 def parse_num(text):
@@ -96,21 +101,35 @@ def parse_dt_loose(s):
     return None
 
 
-def get_prev_hour_record(curr_dt, all_rows):
-    """找 curr_dt 之前最近的一条整点/59分记录（用于计算小时增幅）。
-    按真实时间比较：即使某次整点任务被 GitHub 丢弃或延迟，
-    也能用最近一条记录算增幅，图表不会断档。
+def is_record_point(dt):
+    """判断 dt 是否属于“每小时 58 分”这个记录点：
+    - 本小时 50~59 分；
+    - 下一小时 00~10 分（任务延迟）。
     """
+    return dt.minute >= (60 - EARLY_TOLERANCE) or dt.minute <= LATE_TOLERANCE
+
+
+def record_hour_key(dt):
+    """把记录点映射到它代表的整点小时（返回 date, hour）。
+    - 50~59 分：属于当前小时；
+    - 00~10 分：属于上一小时（延迟任务）。
+    """
+    if dt.minute >= (60 - EARLY_TOLERANCE):
+        return dt.date(), dt.hour
+    else:
+        prev = dt - timedelta(hours=1)
+        return prev.date(), prev.hour
+
+
+def get_prev_hour_record(curr_dt, all_rows):
+    """找 curr_dt 之前最近的一条“58分记录点”记录，用于计算小时增幅。"""
     best_row = None
     best_dt = None
     for row in all_rows:
         if not row or len(row) < 10:
             continue
         row_dt = parse_dt_loose(row[0])
-        if row_dt is None:
-            continue
-        # 只考虑整点或 59 分的记录作为基准
-        if not (row_dt.minute <= 10 or row_dt.minute >= 55):
+        if row_dt is None or not is_record_point(row_dt):
             continue
         if row_dt >= curr_dt:
             continue
@@ -125,15 +144,18 @@ def append_csv(row_dict):
     header, all_rows = load_all_rows()
     curr_dt = datetime.strptime(row_dict["时间"], "%Y-%m-%d %H:%M:%S")
 
-    if curr_dt.hour == 23 and curr_dt.minute >= 55:
-        formatted_time = f"{curr_dt.year}/{curr_dt.month}/{curr_dt.day} 23:59"
-        curr_dt = curr_dt.replace(hour=23, minute=59)
+    # 记录点统一显示为 HH:58
+    if is_record_point(curr_dt):
+        date_part, hour_part = record_hour_key(curr_dt)
+        formatted_time = f"{date_part.year}/{date_part.month}/{date_part.day} {hour_part:02d}:{RECORD_MINUTE:02d}"
+        # 用于计算增幅的“真实时间”仍用抓取时间，避免跨天混乱
+        calc_dt = curr_dt
     else:
         formatted_time = f"{curr_dt.year}/{curr_dt.month}/{curr_dt.day} {curr_dt.hour:02d}:{curr_dt.minute:02d}"
+        calc_dt = curr_dt
 
-    # 整点任务常被 GitHub 延迟，放宽到 <=10 仍按“整点记录”处理
-    is_hourly = (curr_dt.minute <= 10 or curr_dt.minute >= 55)
-    prev_row = get_prev_hour_record(curr_dt, all_rows) if is_hourly else None
+    is_hourly = is_record_point(curr_dt)
+    prev_row = get_prev_hour_record(calc_dt, all_rows) if is_hourly else None
 
     def calc_delta(curr_val, col_idx):
         if not is_hourly or curr_val is None or prev_row is None: return ""
@@ -187,27 +209,28 @@ def generate_chart(target_date, save_path, is_final=False):
         if len(r) < 10: continue
         dt = parse_dt_loose(r[0])
         if dt is None: continue
-
-        if dt.minute > 10 and dt.minute < 55:
+        if not is_record_point(dt):
             continue
 
-        target_date_str = dt.strftime('%Y-%m-%d')
+        date_part, hour_part = record_hour_key(dt)
+        target_date_str = date_part.strftime('%Y-%m-%d')
 
-        rec = {"dt": dt, "hour": dt.hour, "minute": dt.minute,
+        rec = {"dt": dt, "hour": hour_part, "minute": dt.minute,
                "heart": to_float(r[1]), "heart_delta": to_float(r[2]),
                "team1": to_float(r[3]), "delta": to_float(r[4])}
 
-        if dt.hour == 0:
+        if hour_part == 0:
             data_map.setdefault(f"{target_date_str}_0", rec)
             continue
 
-        if dt.hour == 23 and dt.minute >= 55:
-            next_day_str = (dt + timedelta(days=1)).strftime('%Y-%m-%d')
+        if hour_part == 23:
+            next_day = date_part + timedelta(days=1)
+            next_day_str = next_day.strftime('%Y-%m-%d')
             data_map.setdefault(f"{next_day_str}_0_2359", rec)
             data_map.setdefault(f"{target_date_str}_23", rec)
             continue
 
-        key = f"{target_date_str}_{dt.hour}"
+        key = f"{target_date_str}_{hour_part}"
         data_map.setdefault(key, rec)
 
     today_str = target_date.strftime("%Y-%m-%d")
@@ -453,7 +476,6 @@ async def run_once():
 
     append_csv(data)
     try:
-        # 固定输出 chart.png
         generate_chart(curr_dt.date(), CHART_FILE)
     except Exception as e:
         print(f"生成图表失败: {e}")
