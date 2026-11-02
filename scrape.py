@@ -40,18 +40,19 @@ def parse_num(text):
 async def scrape_team(page, url):
     if not url: return {"今日心动人数": None, "团建电力值": None}
     await page.goto(url, wait_until="domcontentloaded", timeout=90000)
-    try:
-        await page.wait_for_selector("text=本团今日心动", timeout=15000)
-    except Exception as e:
-        print(f"[scrape_team] 等待“本团今日心动”超时: {e}")
+
     result = {"今日心动人数": None, "团建电力值": None}
+
+    # 直接等 .stats-value .value 出现，拿到就是数字文本
     try:
-        heart_ele = page.locator("text=本团今日心动").first
-        parent_text = await heart_ele.evaluate("el => el.parentElement.innerText")
-        print(f"[debug] parent_text={parent_text!r}")
-        result["今日心动人数"] = parse_num(parent_text)
+        await page.wait_for_selector(".stats-value .value", timeout=15000)
+        value_text = await page.locator(".stats-value .value").first.inner_text()
+        print(f"[debug] 心动人数原始文本: {value_text!r}")
+        result["今日心动人数"] = parse_num(value_text)
     except Exception as e:
         print(f"[scrape_team] 抓取心动人数失败: {e}")
+
+    # 团建电力值仍用原来的 body 正则
     try:
         body_text = await page.locator("body").inner_text()
         matches = re.findall(r"(\d{1,3}(?:,\d{3})+)\s*/\s*(\d{1,3}(?:,\d{3})+)", body_text)
