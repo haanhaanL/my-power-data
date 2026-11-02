@@ -2,8 +2,8 @@ name: 自动抓取电力数据
 
 on:
   schedule:
-    # 整点运行
-    - cron: '0 * * * *'
+    # 每小时 58 分运行，避开整点高负载
+    - cron: '58 * * * *'
   workflow_dispatch:
 
 jobs:
