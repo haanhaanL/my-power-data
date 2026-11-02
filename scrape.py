@@ -48,6 +48,7 @@ async def scrape_team(page, url):
     try:
         heart_ele = page.locator("text=本团今日心动").first
         parent_text = await heart_ele.evaluate("el => el.parentElement.innerText")
+        print(f"[debug] parent_text={parent_text!r}")
         result["今日心动人数"] = parse_num(parent_text)
     except Exception as e:
         print(f"[scrape_team] 抓取心动人数失败: {e}")
