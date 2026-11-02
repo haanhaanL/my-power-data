@@ -23,8 +23,8 @@ URL_TEAM2 = None
 URL_POWER = "https://y.qq.com/tmead/promotion/h5/powering/1793152992875?_hidehd=1&_miniplayer=1&adtag=share_task&singerId=6665073&p_share=w2pZEizuC5V-xTHRIivoTwD_5f_DMRfGNgTtS7isP_4&hosteuin=oiEqow6FoiCA7n**&ADTAG=wxfshare"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CSV_FILE = os.path.join(BASE_DIR, "电力数据.csv")
-CHART_FILE = os.path.join(BASE_DIR, "对比图.png")
+CSV_FILE = os.path.join(BASE_DIR, "power_data.csv")
+CHART_FILE = os.path.join(BASE_DIR, "chart.png")
 
 
 # ============ 抓取与存储 ============
@@ -443,10 +443,10 @@ async def run_once():
     try:
         today_date = curr_dt.date()
         yest_date = today_date - timedelta(days=1)
-        today_history_chart = os.path.join(BASE_DIR, f"{today_date}_vs_{yest_date}.png")
+        today_history_chart = os.path.join(BASE_DIR, f"chart_{today_date}_vs_{yest_date}.png")
 
         if not os.path.exists(today_history_chart):
-            yest_history_chart = os.path.join(BASE_DIR, f"{yest_date}_vs_{yest_date - timedelta(days=1)}.png")
+            yest_history_chart = os.path.join(BASE_DIR, f"chart_{yest_date}_vs_{yest_date - timedelta(days=1)}.png")
             if not os.path.exists(yest_history_chart):
                 generate_chart(yest_date, yest_history_chart, is_final=True)
             generate_chart(today_date, CHART_FILE)
