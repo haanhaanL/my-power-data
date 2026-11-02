@@ -3,9 +3,6 @@ import csv
 import os
 import re
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urlparse, parse_qs
-
-import httpx
 from playwright.async_api import async_playwright
 
 import matplotlib
@@ -33,29 +30,6 @@ CHART_FILE = os.path.join(BASE_DIR, "chart.png")
 BJT = timezone(timedelta(hours=8))
 
 
-def parse_url_params(url):
-    """解析 URL 里所有 query 参数，返回 dict（值取第一个）"""
-    if not url:
-        return {}
-    try:
-        qs = parse_qs(urlparse(url).query)
-        return {k: v[0] for k, v in qs.items() if v}
-    except Exception:
-        return {}
-
-
-def extract_path_id(url):
-    """从 /powering/1793152992875 这种路径里取最后一段数字"""
-    if not url:
-        return None
-    try:
-        path = urlparse(url).path
-        m = re.search(r"/(\d+)", path)
-        return m.group(1) if m else None
-    except Exception:
-        return None
-
-
 # ============ 抓取与存储 ============
 def parse_num(text):
     if not text: return None
@@ -64,55 +38,33 @@ def parse_num(text):
 
 
 async def scrape_team(page, url):
-    """直接请求 GetTeamHeartbeatCount 接口，参数全部从 URL 解析"""
+    if not url: return {"今日心动人数": None, "团建电力值": None}
+    await page.goto(url, wait_until="domcontentloaded", timeout=90000)
+
     result = {"今日心动人数": None, "团建电力值": None}
 
-    params = parse_url_params(url)
-    activity_id = params.get("activityId")
-    singer_id = params.get("singerId")
-    adtag = params.get("adtag", "")
-    search_id = params.get("searchid", "")
-    print(f"[debug] team params: activityId={activity_id}, singerId={singer_id}, adtag={adtag}, searchid={search_id}")
-
-    if not activity_id or not singer_id:
-        print("[scrape_team] URL 中缺少 activityId 或 singerId，跳过接口请求")
-        return result
-
-    api_url = "https://tmead.y.qq.com/mpproxy/v2/GetTeamHeartbeatCount"
-    headers = {
-        "accept": "application/json, text/plain, */*",
-        "content-type": "application/json",
-        "origin": "https://y.qq.com",
-        "referer": "https://y.qq.com/",
-        "user-agent": "Mozilla/5.0 (Linux; Android 16; Pixel 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Mobile Safari/537.36",
-        "x-mp-source": "3",
-        "x-mp-report": f'{{"adtag":"{adtag}","search_id":"{search_id}"}}',
-        "x-mp-user": "%7B%22uin%22%3A%22%22%2C%22dev%22%3A%7B%22app_ver%22%3A%22Mobile%22%2C%22qimei36%22%3A%22%22%7D%7D",
-    }
-    payload = {
-        "activityId": activity_id,
-        "singerId": singer_id,
-    }
-
+    # 直接等 .stats-value .value 出现，拿到就是数字文本
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(api_url, headers=headers, json=payload)
-            print(f"[debug] GetTeamHeartbeatCount 状态码: {resp.status_code}")
-            print(f"[debug] 返回前 500 字: {resp.text[:500]}")
-            data = resp.json()
-            result["今日心动人数"] = data.get("data", {}).get("heart_beat_user_count")
+        await page.wait_for_selector(".stats-value .value", timeout=15000)
+        value_text = await page.locator(".stats-value .value").first.inner_text()
+        print(f"[debug] 心动人数原始文本: {value_text!r}")
+        result["今日心动人数"] = parse_num(value_text)
     except Exception as e:
-        print(f"[scrape_team] 接口请求失败: {e}")
+        print(f"[scrape_team] 抓取心动人数失败: {e}")
 
+    # 团建电力值仍用原来的 body 正则
+    try:
+        body_text = await page.locator("body").inner_text()
+        matches = re.findall(r"(\d{1,3}(?:,\d{3})+)\s*/\s*(\d{1,3}(?:,\d{3})+)", body_text)
+        if matches:
+            best = max(matches, key=lambda x: int(x[0].replace(",", "")))
+            result["团建电力值"] = int(best[0].replace(",", ""))
+    except Exception as e:
+        print(f"[scrape_team] 抓取团建电力值失败: {e}")
     return result
 
 
 async def scrape_power(page):
-    """总电力值仍用 Playwright，URL 参数统一从 URL_POWER 解析"""
-    power_params = parse_url_params(URL_POWER)
-    power_activity_id = extract_path_id(URL_POWER)
-    print(f"[debug] power params: activityId={power_activity_id}, singerId={power_params.get('singerId')}, adtag={power_params.get('adtag')}")
-
     await page.goto(URL_POWER, wait_until="domcontentloaded", timeout=90000)
     result = {"总电力值": None}
     try:
@@ -510,7 +462,7 @@ async def run_once():
         data = {"时间": datetime.now(BJT).strftime("%Y-%m-%d %H:%M:%S")}
         curr_dt = datetime.strptime(data["时间"], "%Y-%m-%d %H:%M:%S")
 
-        # 心动人数走接口（不需要 page1），总电力值仍用 Playwright
+        # 两个页面并行抓取
         t1, pwr = await asyncio.gather(
             scrape_team(page1, URL_TEAM1),
             scrape_power(page2),
