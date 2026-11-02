@@ -43,47 +43,16 @@ async def scrape_team(page, url):
 
     result = {"今日心动人数": None, "团建电力值": None}
 
-    # --- 心动人数：等"含数字的文本"出现，最多 30s ---
+    # 直接等 .stats-value .value 出现，拿到就是数字文本
     try:
-        await page.wait_for_function(
-            """() => {
-                const els = document.querySelectorAll('.stats-value .value');
-                return [...els].some(e => /\\d/.test(e.innerText));
-            }""",
-            timeout=30000,
-        )
-    except Exception as e:
-        print(f"[scrape_team] 等心动文本超时: {e}")
-
-    # 遍历取第一个"非空且含数字"的，避开隐藏占位/骨架屏
-    try:
-        loc = page.locator(".stats-value .value")
-        value_text = None
-        for i in range(await loc.count()):
-            t = await loc.nth(i).inner_text()
-            if t and re.search(r"\d", t):
-                value_text = t
-                break
-        print(f"[debug] 心动人数文本: {value_text!r}")
+        await page.wait_for_selector(".stats-value .value", timeout=15000)
+        value_text = await page.locator(".stats-value .value").first.inner_text()
+        print(f"[debug] 心动人数原始文本: {value_text!r}")
         result["今日心动人数"] = parse_num(value_text)
     except Exception as e:
         print(f"[scrape_team] 抓取心动人数失败: {e}")
 
-    # --- 兜底：文本锚点正则 ---
-    if result["今日心动人数"] is None:
-        try:
-            body_text = await page.locator("body").inner_text()
-            m = re.search(r"心动[^\d]{0,15}([\d,]+)", body_text)
-            if m:
-                result["今日心动人数"] = int(m.group(1).replace(",", ""))
-                print(f"[debug] 心动人数兜底命中: {result['今日心动人数']}")
-            else:
-                print(f"[debug] 心动全失败, body 前 500: {body_text[:500]!r}")
-                await page.screenshot(path="debug_team.png", full_page=True)
-        except Exception as e:
-            print(f"[scrape_team] 兜底失败: {e}")
-
-    # --- 团建电力值：保持原样 ---
+    # 团建电力值仍用原来的 body 正则
     try:
         body_text = await page.locator("body").inner_text()
         matches = re.findall(r"(\d{1,3}(?:,\d{3})+)\s*/\s*(\d{1,3}(?:,\d{3})+)", body_text)
@@ -99,61 +68,20 @@ async def scrape_power(page):
     await page.goto(URL_POWER, wait_until="domcontentloaded", timeout=90000)
     result = {"总电力值": None}
     try:
-        # 等锚点"总电力"附近出现数字，最多 30s
-        await page.wait_for_function(
-            """() => /总电力[^\\d]{0,15}[\\d,]+/.test(document.body.innerText)""",
-            timeout=30000,
-        )
+        # 等带千分位逗号的数字出现，最多 15 秒；出现即继续，不再死等
+        await page.wait_for_selector("text=/\\d{1,3}(,\\d{3})+/", timeout=15000)
     except Exception as e:
-        print(f"[scrape_power] 等总电力文本超时: {e}")
-
+        print(f"[scrape_power] 等待数字超时: {e}")
     try:
         body_text = await page.locator("body").inner_text()
-        # 优先锚点提取
-        m = re.search(r"总电力[^\d]{0,15}([\d,]+)", body_text)
-        if m:
-            result["总电力值"] = int(m.group(1).replace(",", ""))
-            print(f"[debug] 总电力锚点命中: {result['总电力值']}")
+        nums = re.findall(r"\d{1,3}(?:,\d{3})+", body_text)
+        if nums:
+            result["总电力值"] = max(int(n.replace(",", "")) for n in nums)
         else:
-            # 兜底：千分位 或 纯数字，过滤掉明显是小数字的
-            nums = re.findall(r"\d{1,3}(?:,\d{3})+|\b\d+\b", body_text)
-            cand = [int(n.replace(",", "")) for n in nums]
-            cand = [c for c in cand if c > 1000]
-            if cand:
-                result["总电力值"] = max(cand)
-                print(f"[debug] 总电力兜底命中: {result['总电力值']}")
-            else:
-                print(f"[scrape_power] 无候选, body 前 500: {body_text[:500]!r}")
-                await page.screenshot(path="debug_power.png", full_page=True)
+            print(f"[scrape_power] 页面文本前 500 字: {body_text[:500]}")
     except Exception as e:
         print(f"[scrape_power] 抓取总电力值失败: {e}")
     return result
-
-
-async def scrape_team_with_retry(page, url, retries=2):
-    """心动人数偶发为空时重试，最多 retries 次"""
-    r = {"今日心动人数": None, "团建电力值": None}
-    for i in range(retries + 1):
-        r = await scrape_team(page, url)
-        if r["今日心动人数"] is not None:
-            return r
-        if i < retries:
-            print(f"[retry] 心动人数第 {i+1} 次重试...")
-            await asyncio.sleep(3)
-    return r
-
-
-async def scrape_power_with_retry(page, retries=2):
-    """总电力值偶发为空时重试，最多 retries 次"""
-    r = {"总电力值": None}
-    for i in range(retries + 1):
-        r = await scrape_power(page)
-        if r["总电力值"] is not None:
-            return r
-        if i < retries:
-            print(f"[retry] 总电力值第 {i+1} 次重试...")
-            await asyncio.sleep(3)
-    return r
 
 
 def load_all_rows():
@@ -534,10 +462,10 @@ async def run_once():
         data = {"时间": datetime.now(BJT).strftime("%Y-%m-%d %H:%M:%S")}
         curr_dt = datetime.strptime(data["时间"], "%Y-%m-%d %H:%M:%S")
 
-        # 两个页面并行抓取（带重试）
+        # 两个页面并行抓取
         t1, pwr = await asyncio.gather(
-            scrape_team_with_retry(page1, URL_TEAM1),
-            scrape_power_with_retry(page2),
+            scrape_team(page1, URL_TEAM1),
+            scrape_power(page2),
         )
 
         data["今日心动人数1"], data["团建电力值1"] = t1["今日心动人数"], t1["团建电力值"]
