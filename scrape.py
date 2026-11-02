@@ -2,7 +2,7 @@ import asyncio
 import csv
 import os
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from playwright.async_api import async_playwright
 
 import matplotlib
@@ -25,6 +25,9 @@ URL_POWER = "https://y.qq.com/tmead/promotion/h5/powering/1793152992875?_hidehd=
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_FILE = os.path.join(BASE_DIR, "power_data.csv")
 CHART_FILE = os.path.join(BASE_DIR, "chart.png")
+
+# 北京时间 UTC+8
+BJT = timezone(timedelta(hours=8))
 
 
 # ============ 抓取与存储 ============
@@ -429,7 +432,7 @@ async def run_once():
         context = await browser.new_context(
             user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1")
         page = await context.new_page()
-        data = {"时间": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+        data = {"时间": datetime.now(BJT).strftime("%Y-%m-%d %H:%M:%S")}
         curr_dt = datetime.strptime(data["时间"], "%Y-%m-%d %H:%M:%S")
 
         t1 = await scrape_team(page, URL_TEAM1)
