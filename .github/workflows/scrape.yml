@@ -49,7 +49,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add power_data.csv chart.png
-          git add chart_*_final.png 2>/dev/null || true
           if git diff --staged --quiet; then
             echo "没有变更"
             exit 0
