@@ -227,8 +227,10 @@ def generate_chart(target_date, save_path, is_final=False):
 
     hours = list(range(0, 25))
 
-    # Linux CI 优先用 WenQuanYi Zen Hei，Windows 本地回退到微软雅黑等
-    plt.rcParams["font.sans-serif"] = ["WenQuanYi Zen Hei", "Microsoft YaHei", "SimHei", "Arial Unicode MS", "DejaVu Sans"]
+    # 优先使用 CI 安装的 WenQuanYi Micro Hei（fonts-wqy-microhei），
+    # 本地回退到 Zen Hei / 微软雅黑等
+    plt.rcParams["font.sans-serif"] = ["WenQuanYi Micro Hei", "WenQuanYi Zen Hei", "Microsoft YaHei", "SimHei",
+                                       "Arial Unicode MS", "DejaVu Sans"]
     plt.rcParams["axes.unicode_minus"] = False
 
     fig, axes = plt.subplots(2, 1, figsize=(14, 10), sharex=True)
@@ -451,7 +453,7 @@ async def run_once():
 
     append_csv(data)
     try:
-        # 固定输出 chart.png，不再生成按日期命名的归档图
+        # 固定输出 chart.png
         generate_chart(curr_dt.date(), CHART_FILE)
     except Exception as e:
         print(f"生成图表失败: {e}")
