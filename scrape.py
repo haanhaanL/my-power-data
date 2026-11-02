@@ -39,69 +39,48 @@ def parse_num(text):
 
 async def scrape_team(page, url):
     if not url: return {"今日心动人数": None, "团建电力值": None}
-    
-    # 提速：拦截图片、媒体和字体，大幅加快加载
-    await page.route("**/*", lambda route: route.abort() if route.request.resource_type in ["image", "media", "font"] else route.continue_())
-    
-    print("[scrape_team] 页面加载中...")
-    # 防漏：改为 domcontentloaded 之后，用轮询显式等待
     await page.goto(url, wait_until="domcontentloaded", timeout=90000)
 
     result = {"今日心动人数": None, "团建电力值": None}
 
-    # 防漏抓轮询：最多等 20 秒，每秒查一次，拿到数据立刻收工
-    for i in range(20):
-        try:
-            # 抓心动人数
-            heart_ele = page.locator("text=本团今日心动").first
-            if await heart_ele.count() > 0:
-                parent_text = await heart_ele.evaluate("el => el.parentElement.innerText")
-                num = parse_num(parent_text)
-                if num is not None:
-                    result["今日心动人数"] = num
-            
-            # 抓团建电力值
-            body_text = await page.locator("body").inner_text()
-            matches = re.findall(r"(\d{1,3}(?:,\d{3})+)\s*/\s*(\d{1,3}(?:,\d{3})+)", body_text)
-            if matches:
-                best = max(matches, key=lambda x: int(x[0].replace(",", "")))
-                result["团建电力值"] = int(best[0].replace(",", ""))
-            
-            # 如果两个都抓到了，直接跳出，不再死等
-            if result["今日心动人数"] is not None and result["团建电力值"] is not None:
-                break
-        except Exception:
-            pass
-        
-        await page.wait_for_timeout(1000)
-        
+    # 直接等 .stats-value .value 出现，拿到就是数字文本
+    try:
+        await page.wait_for_selector(".stats-value .value", timeout=15000)
+        value_text = await page.locator(".stats-value .value").first.inner_text()
+        print(f"[debug] 心动人数原始文本: {value_text!r}")
+        result["今日心动人数"] = parse_num(value_text)
+    except Exception as e:
+        print(f"[scrape_team] 抓取心动人数失败: {e}")
+
+    # 团建电力值仍用原来的 body 正则
+    try:
+        body_text = await page.locator("body").inner_text()
+        matches = re.findall(r"(\d{1,3}(?:,\d{3})+)\s*/\s*(\d{1,3}(?:,\d{3})+)", body_text)
+        if matches:
+            best = max(matches, key=lambda x: int(x[0].replace(",", "")))
+            result["团建电力值"] = int(best[0].replace(",", ""))
+    except Exception as e:
+        print(f"[scrape_team] 抓取团建电力值失败: {e}")
     return result
 
 
 async def scrape_power(page):
-    await page.route("**/*", lambda route: route.abort() if route.request.resource_type in ["image", "media", "font"] else route.continue_())
-    
-    print("[scrape_power] 页面加载中...")
     await page.goto(URL_POWER, wait_until="domcontentloaded", timeout=90000)
-    
     result = {"总电力值": None}
-    
-    # 防漏抓轮询
-    for i in range(20):
-        try:
-            body_text = await page.locator("body").inner_text()
-            nums = re.findall(r"\d{1,3}(?:,\d{3})+", body_text)
-            if nums: 
-                max_num = max(int(n.replace(",", "")) for n in nums)
-                # 兜底阈值，防止抓到页面上无关的小数字
-                if max_num > 1000000:
-                    result["总电力值"] = max_num
-                    break
-        except Exception:
-            pass
-        
-        await page.wait_for_timeout(1000)
-        
+    try:
+        # 等带千分位逗号的数字出现，最多 15 秒；出现即继续，不再死等
+        await page.wait_for_selector("text=/\\d{1,3}(,\\d{3})+/", timeout=15000)
+    except Exception as e:
+        print(f"[scrape_power] 等待数字超时: {e}")
+    try:
+        body_text = await page.locator("body").inner_text()
+        nums = re.findall(r"\d{1,3}(?:,\d{3})+", body_text)
+        if nums:
+            result["总电力值"] = max(int(n.replace(",", "")) for n in nums)
+        else:
+            print(f"[scrape_power] 页面文本前 500 字: {body_text[:500]}")
+    except Exception as e:
+        print(f"[scrape_power] 抓取总电力值失败: {e}")
     return result
 
 
@@ -190,7 +169,7 @@ def append_csv(row_dict):
     print(f"✅ [{formatted_time}] 写入完成。\n")
 
 
-# ============ 图表生成（完全还原你的原版样式） ============
+# ============ 图表生成 ============
 def to_float(v):
     try:
         return float(v) if v not in (None, "") else None
@@ -215,6 +194,7 @@ def generate_chart(target_date, save_path, is_final=False):
         dt = parse_dt_loose(r[0])
         if dt is None: continue
 
+        # 容差与 append_csv 保持一致
         if dt.minute > 10 and dt.minute < 55:
             continue
 
@@ -254,6 +234,7 @@ def generate_chart(target_date, save_path, is_final=False):
 
     hours = list(range(0, 25))
 
+    # 文泉驿正黑带粗体，放第一位；其余作为回退
     plt.rcParams["font.sans-serif"] = ["WenQuanYi Zen Hei", "WenQuanYi Micro Hei", "Microsoft YaHei", "SimHei",
                                        "Arial Unicode MS", "DejaVu Sans"]
     plt.rcParams["axes.unicode_minus"] = False
@@ -465,6 +446,15 @@ async def run_once():
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context(
             user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1")
+
+        async def route_handler(route):
+            # 拦截字体和媒体，减少加载时间；图片保留，防止影响页面渲染
+            if route.request.resource_type in ("font", "media"):
+                await route.abort()
+            else:
+                await route.continue_()
+
+        await context.route("**/*", route_handler)
 
         page1 = await context.new_page()
         page2 = await context.new_page()
