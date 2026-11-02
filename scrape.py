@@ -41,7 +41,7 @@ async def scrape_team(page, url):
     if not url: return {"今日心动人数": None, "团建电力值": None}
     await page.goto(url, wait_until="domcontentloaded", timeout=90000)
     try:
-        await page.wait_for_selector("text=本团今日心动", timeout=30000)
+        await page.wait_for_selector("text=本团今日心动", timeout=15000)
     except Exception as e:
         print(f"[scrape_team] 等待“本团今日心动”超时: {e}")
     result = {"今日心动人数": None, "团建电力值": None}
@@ -64,15 +64,17 @@ async def scrape_team(page, url):
 
 async def scrape_power(page):
     await page.goto(URL_POWER, wait_until="domcontentloaded", timeout=90000)
-    try:
-        await page.wait_for_timeout(15000)
-    except Exception as e:
-        print(f"[scrape_power] 等待超时: {e}")
     result = {"总电力值": None}
+    try:
+        # 等带千分位逗号的数字出现，最多 15 秒；出现即继续，不再死等
+        await page.wait_for_selector("text=/\\d{1,3}(,\\d{3})+/", timeout=15000)
+    except Exception as e:
+        print(f"[scrape_power] 等待数字超时: {e}")
     try:
         body_text = await page.locator("body").inner_text()
         nums = re.findall(r"\d{1,3}(?:,\d{3})+", body_text)
-        if nums: result["总电力值"] = max(int(n.replace(",", "")) for n in nums)
+        if nums:
+            result["总电力值"] = max(int(n.replace(",", "")) for n in nums)
         else:
             print(f"[scrape_power] 页面文本前 500 字: {body_text[:500]}")
     except Exception as e:
@@ -441,14 +443,30 @@ async def run_once():
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context(
             user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1")
-        page = await context.new_page()
+
+        async def route_handler(route):
+            # 拦截字体和媒体，减少加载时间；图片保留，防止影响页面渲染
+            if route.request.resource_type in ("font", "media"):
+                await route.abort()
+            else:
+                await route.continue_()
+
+        await context.route("**/*", route_handler)
+
+        page1 = await context.new_page()
+        page2 = await context.new_page()
+
         data = {"时间": datetime.now(BJT).strftime("%Y-%m-%d %H:%M:%S")}
         curr_dt = datetime.strptime(data["时间"], "%Y-%m-%d %H:%M:%S")
 
-        t1 = await scrape_team(page, URL_TEAM1)
+        # 两个页面并行抓取
+        t1, pwr = await asyncio.gather(
+            scrape_team(page1, URL_TEAM1),
+            scrape_power(page2),
+        )
+
         data["今日心动人数1"], data["团建电力值1"] = t1["今日心动人数"], t1["团建电力值"]
         data["今日心动人数2"], data["团建电力值2"] = None, None
-        pwr = await scrape_power(page)
         data["总电力值"] = pwr["总电力值"]
         await browser.close()
 
