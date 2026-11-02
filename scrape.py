@@ -2,7 +2,7 @@ import asyncio
 import csv
 import os
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from playwright.async_api import async_playwright
 
 import matplotlib
@@ -12,6 +12,10 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
+import matplotlib.font_manager
+
+# 强制刷新字体缓存，确保 CI 新装字体能被识别
+matplotlib.font_manager._load_fontmanager(try_read_cache=False)
 
 # ============ 配置 ============
 URL_TEAM1 = "https://y.qq.com/tmead/promotion/h5/team-activity/detail?_hidehd=1&_miniplayer=1&adtag=sszd&singerId=6665073&activityId=17931826095559&searchid=113943832761792946,&hosteuin=ow657wSlownlon**&ADTAG=wxfshare"
@@ -19,8 +23,11 @@ URL_TEAM2 = None
 URL_POWER = "https://y.qq.com/tmead/promotion/h5/powering/1793152992875?_hidehd=1&_miniplayer=1&adtag=share_task&singerId=6665073&p_share=w2pZEizuC5V-xTHRIivoTwD_5f_DMRfGNgTtS7isP_4&hosteuin=oiEqow6FoiCA7n**&ADTAG=wxfshare"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CSV_FILE = os.path.join(BASE_DIR, "电力数据.csv")
-CHART_FILE = os.path.join(BASE_DIR, "对比图.png")
+CSV_FILE = os.path.join(BASE_DIR, "power_data.csv")
+CHART_FILE = os.path.join(BASE_DIR, "chart.png")
+
+# 北京时间 UTC+8
+BJT = timezone(timedelta(hours=8))
 
 
 # ============ 抓取与存储 ============
@@ -32,36 +39,44 @@ def parse_num(text):
 
 async def scrape_team(page, url):
     if not url: return {"今日心动人数": None, "团建电力值": None}
-    await page.goto(url, wait_until="networkidle", timeout=90000)
-    await page.wait_for_timeout(5000)
+    await page.goto(url, wait_until="domcontentloaded", timeout=90000)
+    try:
+        await page.wait_for_selector("text=本团今日心动", timeout=30000)
+    except Exception as e:
+        print(f"[scrape_team] 等待“本团今日心动”超时: {e}")
     result = {"今日心动人数": None, "团建电力值": None}
     try:
         heart_ele = page.locator("text=本团今日心动").first
         parent_text = await heart_ele.evaluate("el => el.parentElement.innerText")
         result["今日心动人数"] = parse_num(parent_text)
-    except:
-        pass
+    except Exception as e:
+        print(f"[scrape_team] 抓取心动人数失败: {e}")
     try:
         body_text = await page.locator("body").inner_text()
         matches = re.findall(r"(\d{1,3}(?:,\d{3})+)\s*/\s*(\d{1,3}(?:,\d{3})+)", body_text)
         if matches:
             best = max(matches, key=lambda x: int(x[0].replace(",", "")))
             result["团建电力值"] = int(best[0].replace(",", ""))
-    except:
-        pass
+    except Exception as e:
+        print(f"[scrape_team] 抓取团建电力值失败: {e}")
     return result
 
 
 async def scrape_power(page):
-    await page.goto(URL_POWER, wait_until="networkidle", timeout=90000)
-    await page.wait_for_timeout(5000)
+    await page.goto(URL_POWER, wait_until="domcontentloaded", timeout=90000)
+    try:
+        await page.wait_for_timeout(15000)
+    except Exception as e:
+        print(f"[scrape_power] 等待超时: {e}")
     result = {"总电力值": None}
     try:
         body_text = await page.locator("body").inner_text()
         nums = re.findall(r"\d{1,3}(?:,\d{3})+", body_text)
         if nums: result["总电力值"] = max(int(n.replace(",", "")) for n in nums)
-    except:
-        pass
+        else:
+            print(f"[scrape_power] 页面文本前 500 字: {body_text[:500]}")
+    except Exception as e:
+        print(f"[scrape_power] 抓取总电力值失败: {e}")
     return result
 
 
@@ -89,9 +104,7 @@ def parse_dt_loose(s):
     return None
 
 
-# ============ 修复点 1：日期无前导0匹配 ============
 def get_prev_hour_record(curr_dt, all_rows):
-    # 确保匹配时不带前导0，兼容 11/01 和 11/1
     def fmt_no_pad(dt_obj):
         return f"{dt_obj.year}/{dt_obj.month}/{dt_obj.day} {dt_obj.hour}"
 
@@ -114,14 +127,14 @@ def append_csv(row_dict):
     header, all_rows = load_all_rows()
     curr_dt = datetime.strptime(row_dict["时间"], "%Y-%m-%d %H:%M:%S")
 
-    # ============ 修复点 2：统一写入格式，不带前导 0 ============
     if curr_dt.hour == 23 and curr_dt.minute >= 55:
         formatted_time = f"{curr_dt.year}/{curr_dt.month}/{curr_dt.day} 23:59"
         curr_dt = curr_dt.replace(hour=23, minute=59)
     else:
         formatted_time = f"{curr_dt.year}/{curr_dt.month}/{curr_dt.day} {curr_dt.hour:02d}:{curr_dt.minute:02d}"
 
-    is_hourly = (curr_dt.minute <= 5 or curr_dt.minute >= 55)
+    # 容差放宽到 10 分钟，兼容 GitHub 启动延迟
+    is_hourly = (curr_dt.minute <= 10 or curr_dt.minute >= 55)
     prev_row = get_prev_hour_record(curr_dt, all_rows) if is_hourly else None
 
     def calc_delta(curr_val, col_idx):
@@ -177,7 +190,8 @@ def generate_chart(target_date, save_path, is_final=False):
         dt = parse_dt_loose(r[0])
         if dt is None: continue
 
-        if dt.minute > 5 and dt.minute < 55:
+        # 容差与 append_csv 保持一致
+        if dt.minute > 10 and dt.minute < 55:
             continue
 
         target_date_str = dt.strftime('%Y-%m-%d')
@@ -216,7 +230,8 @@ def generate_chart(target_date, save_path, is_final=False):
 
     hours = list(range(0, 25))
 
-    plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "Arial Unicode MS", "DejaVu Sans"]
+    plt.rcParams["font.sans-serif"] = ["WenQuanYi Micro Hei", "WenQuanYi Zen Hei", "Microsoft YaHei", "SimHei",
+                                       "Arial Unicode MS", "DejaVu Sans"]
     plt.rcParams["axes.unicode_minus"] = False
 
     fig, axes = plt.subplots(2, 1, figsize=(14, 10), sharex=True)
@@ -427,7 +442,7 @@ async def run_once():
         context = await browser.new_context(
             user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1")
         page = await context.new_page()
-        data = {"时间": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+        data = {"时间": datetime.now(BJT).strftime("%Y-%m-%d %H:%M:%S")}
         curr_dt = datetime.strptime(data["时间"], "%Y-%m-%d %H:%M:%S")
 
         t1 = await scrape_team(page, URL_TEAM1)
@@ -439,45 +454,18 @@ async def run_once():
 
     append_csv(data)
     try:
-        today_date = curr_dt.date()
-        yest_date = today_date - timedelta(days=1)
-        today_history_chart = os.path.join(BASE_DIR, f"{today_date}_vs_{yest_date}.png")
-
-        if not os.path.exists(today_history_chart):
-            yest_history_chart = os.path.join(BASE_DIR, f"{yest_date}_vs_{yest_date - timedelta(days=1)}.png")
-            if not os.path.exists(yest_history_chart):
-                generate_chart(yest_date, yest_history_chart, is_final=True)
-            generate_chart(today_date, CHART_FILE)
-        else:
-            generate_chart(today_date, CHART_FILE)
+        generate_chart(curr_dt.date(), CHART_FILE)
     except Exception as e:
         print(f"生成图表失败: {e}")
 
 
 async def main():
-    print("定时任务已启动...")
+    print("开始执行单次抓取...")
     try:
         await run_once()
+        print("单次抓取任务完成。")
     except Exception as e:
-        print(f"[启动抓取失败]: {e}")
-
-    while True:
-        now = datetime.now()
-
-        if now.hour == 23 and now.minute < 59:
-            next_run = now.replace(hour=23, minute=59, second=0, microsecond=0)
-        else:
-            next_run = (now + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
-
-        wait_seconds = (next_run - now).total_seconds()
-        print(f"下次抓取时间: {next_run.strftime('%Y-%m-%d %H:%M:%S')}，等待 {wait_seconds:.0f} 秒...")
-        await asyncio.sleep(wait_seconds)
-
-        await asyncio.sleep(5)
-        try:
-            await run_once()
-        except Exception as e:
-            print(f"[抓取失败]: {e}")
+        print(f"[抓取失败]: {e}")
 
 
 if __name__ == "__main__":
