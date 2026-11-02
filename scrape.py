@@ -89,9 +89,7 @@ def parse_dt_loose(s):
     return None
 
 
-# ============ 修复点 1：日期无前导0匹配 ============
 def get_prev_hour_record(curr_dt, all_rows):
-    # 确保匹配时不带前导0，兼容 11/01 和 11/1
     def fmt_no_pad(dt_obj):
         return f"{dt_obj.year}/{dt_obj.month}/{dt_obj.day} {dt_obj.hour}"
 
@@ -114,7 +112,6 @@ def append_csv(row_dict):
     header, all_rows = load_all_rows()
     curr_dt = datetime.strptime(row_dict["时间"], "%Y-%m-%d %H:%M:%S")
 
-    # ============ 修复点 2：统一写入格式，不带前导 0 ============
     if curr_dt.hour == 23 and curr_dt.minute >= 55:
         formatted_time = f"{curr_dt.year}/{curr_dt.month}/{curr_dt.day} 23:59"
         curr_dt = curr_dt.replace(hour=23, minute=59)
@@ -455,29 +452,12 @@ async def run_once():
 
 
 async def main():
-    print("定时任务已启动...")
+    print("开始执行单次抓取...")
     try:
         await run_once()
+        print("单次抓取任务完成。")
     except Exception as e:
-        print(f"[启动抓取失败]: {e}")
-
-    while True:
-        now = datetime.now()
-
-        if now.hour == 23 and now.minute < 59:
-            next_run = now.replace(hour=23, minute=59, second=0, microsecond=0)
-        else:
-            next_run = (now + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
-
-        wait_seconds = (next_run - now).total_seconds()
-        print(f"下次抓取时间: {next_run.strftime('%Y-%m-%d %H:%M:%S')}，等待 {wait_seconds:.0f} 秒...")
-        await asyncio.sleep(wait_seconds)
-
-        await asyncio.sleep(5)
-        try:
-            await run_once()
-        except Exception as e:
-            print(f"[抓取失败]: {e}")
+        print(f"[抓取失败]: {e}")
 
 
 if __name__ == "__main__":
