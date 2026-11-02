@@ -2,8 +2,8 @@ name: 自动抓取电力数据
 
 on:
   schedule:
-    # 每小时的第 5 分钟运行（UTC 时间，对应北京时间每小时的 05 分）
-    - cron: '5 * * * *'
+    # 每小时整点运行（UTC 时间）。GitHub Actions 调度有几分钟延迟，属正常现象。
+    - cron: '0 * * * *'
   workflow_dispatch:  # 保留手动触发按钮，方便调试
 
 jobs:
@@ -47,7 +47,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           # 只添加目标文件，避免把无关变更带进来
-          git add 电力数据.csv 对比图.png
+          git add power_data.csv chart.png
 
           # 没有变更就跳过 commit
           if git diff --staged --quiet; then
