@@ -14,53 +14,54 @@
         }
         .container { width: 100%; max-width: 900px; }
         
+        /* 顶部日期选择区 */
         .header-bar {
             display: flex; justify-content: center; align-items: center;
             margin-bottom: 12px; gap: 10px;
         }
         .header-bar span {
-            color: #ea3690; font-weight: bold; font-size: 15px;
+            color: #e74c3c; font-weight: bold; font-size: 15px;
         }
         .date-select {
-            font-size: 15px; font-weight: bold; color: #ea3690;
-            background: white; border: 1px solid rgba(234,54,144,0.35);
+            font-size: 15px; font-weight: bold; color: #e74c3c;
+            background: white; border: 1px solid rgba(231,76,60,0.35);
             border-radius: 20px; padding: 6px 16px;
             outline: none; appearance: none;
-            box-shadow: 0 2px 8px rgba(234,54,144,0.08);
+            box-shadow: 0 2px 8px rgba(231,76,60,0.08);
+            font-family: inherit;
         }
 
+        /* 卡片风格 */
         .card {
-            background: white; border-radius: 12px; box-shadow: 0 4px 12px rgba(234,54,144,0.08);
-            padding: 12px 0; margin-bottom: 12px; overflow: hidden; border: 1px solid rgba(234,54,144,0.10);
+            background: white; border-radius: 12px; box-shadow: 0 4px 12px rgba(231,76,60,0.08);
+            padding: 12px 0; margin-bottom: 12px; overflow: hidden; border: 1px solid rgba(231,76,60,0.10);
         }
         
+        /* 统计框 */
         .stats-wrap { text-align: center; padding: 0 10px; }
         .stats {
-            font-size: 12px; font-weight: bold; color: #ea3690;
-            background: #fdf7fa; border: 1px solid rgba(234,54,144,0.2);
+            font-size: 12px; font-weight: bold; color: #e74c3c;
+            background: #fdf7fa; border: 1px solid rgba(231,76,60,0.2);
             border-radius: 20px; padding: 8px 16px; display: inline-block;
             line-height: 1.5;
         }
 
         .title {
-            text-align: center; color: #ea3690; font-size: 15px; font-weight: bold; margin: 5px 0 10px 0;
+            text-align: center; color: #e74c3c; font-size: 15px; font-weight: bold; margin: 5px 0 10px 0;
         }
-        h3 { text-align: center; color: #ea3690; margin: 0 0 10px 0; font-size: 15px; }
+        h3 { text-align: center; color: #e74c3c; margin: 0 0 10px 0; font-size: 15px; }
 
-        /* 表格滑动框 */
-        .table-scroll-box {
+        /* 表格与图表滑动框 */
+        .table-scroll-box, .chart-scroll-box {
             width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch;
         }
-        .table-scroll-box::-webkit-scrollbar { display: none; }
-
-        /* 图表滑动框 */
-        .chart-scroll-box {
-            width: 100%; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch;
-        }
-        .chart-scroll-box::-webkit-scrollbar { display: none; }
+        .table-scroll-box::-webkit-scrollbar, .chart-scroll-box::-webkit-scrollbar { display: none; }
+        
+        /* 图表容器 */
+        .chart-scroll-box { overflow-y: hidden; }
         .chart-wrapper { width: 900px; height: 350px; }
 
-        /* 表格样式（复刻新版风格） */
+        /* 表格样式（复刻精致风格） */
         table {
             width: 100%; border-collapse: separate; border-spacing: 0;
             font-size: 12px; min-width: 850px;
@@ -70,20 +71,21 @@
             white-space: nowrap; line-height: 1.5;
         }
         th {
-            background-color: #ea3690; color: #ffffff; font-weight: bold;
+            background-color: #e74c3c; color: #ffffff; font-weight: bold;
             font-size: 12px; position: sticky; top: 0; z-index: 2;
             border: 1px solid rgba(255, 255, 255, 0.3); box-shadow: 0 1px 0 #f3e6ee;
         }
         
         /* 首列固定 */
         th:first-child, td:first-child { 
-            text-align: center; color: #ea3690; position: sticky; left: 0; z-index: 1;
+            text-align: center; color: #e74c3c; position: sticky; left: 0; z-index: 1;
             background-color: #ffffff; font-weight: bold;
         }
-        th:first-child { background-color: #ea3690; color: #ffffff; z-index: 20; }
-        tbody tr:nth-child(even) { background-color: #ea36900a; }
-        tbody tr:nth-child(even) td:first-child { background-color: #fdf7fa; }
+        th:first-child { background-color: #e74c3c; color: #ffffff; z-index: 20; }
+        tbody tr:nth-child(even) { background-color: #e74c3c0a; }
+        tbody tr:nth-child(even) td:first-child { background-color: #fcf5f4; }
         
+        /* 数值样式 */
         .val-heart { font-weight: bold; color: #333; }
         .val-power { font-weight: bold; color: #333; }
         .val-total { font-weight: bold; color: #333; } 
@@ -91,7 +93,7 @@
         .up { color: #e74c3c; font-weight: bold; }
         .down { color: #27ae60; font-weight: bold; }
         
-        #loading { text-align: center; color: #ea3690; font-size: 16px; margin-top: 50px; }
+        #loading { text-align: center; color: #e74c3c; font-size: 16px; margin-top: 50px; font-weight: bold; }
 
         /* 适配手机端 */
         @media (max-width: 900px) {
