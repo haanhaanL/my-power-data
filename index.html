@@ -506,37 +506,46 @@
                 });
             });
 
-            // 自定义 Tooltip 格式化函数，计算与上一个点的差值并用橙色显示
-            const customTooltipFormatter = function(params) {
-                if (!params || !params.length) return '';
-                
-                let result = `<div style="font-size: 13px; font-weight: bold; margin-bottom: 5px;">${params[0].axisValue}</div>`;
-                let dataIndex = params[0].dataIndex;
-                
-                params.forEach(p => {
-                    if (p.value === null || p.value === undefined) return;
+            // 自定义 Tooltip 格式化函数：直接读取 CSV 中已经算好的增幅字段
+            const makeTooltipFormatter = (deltaKey) => {
+                return function(params) {
+                    if (!params || !params.length) return '';
                     
-                    result += `<div style="margin: 3px 0;">${p.marker} ${p.seriesName}：${p.value.toLocaleString()}`;
+                    let result = `<div style="font-size: 13px; font-weight: bold; margin-bottom: 5px;">${params[0].axisValue}</div>`;
                     
-                    // 计算当前时段增幅
-                    if (dataIndex > 0) {
-                        let prevValue = p.data[dataIndex - 1];
-                        if (prevValue !== null && prevValue !== undefined) {
-                            let diff = p.value - prevValue;
-                            if (diff !== 0) {
-                                let diffStr = diff > 0 ? `+${diff.toLocaleString()}` : diff.toLocaleString();
+                    params.forEach(p => {
+                        if (p.value === null || p.value === undefined) return;
+                        
+                        result += `<div style="margin: 3px 0;">${p.marker} ${p.seriesName}：${p.value.toLocaleString()}`;
+                        
+                        // 根据 seriesName 映射到具体的日期，读取对应的 deltaKey
+                        let dateKey = null;
+                        if (p.seriesName === shortDate) dateKey = selectedDate;
+                        else if (p.seriesName === prevDateStr.substring(5)) dateKey = prevDateStr;
+                        else {
+                            // 历史日期
+                            for (const d of allDates) {
+                                if (d.substring(5) === p.seriesName) { dateKey = d; break; }
+                            }
+                        }
+                        
+                        // 读取预设的增幅
+                        if (dateKey && dataMap[dateKey] && dataMap[dateKey][p.axisValue] && dataMap[dateKey][p.axisValue][deltaKey] !== undefined) {
+                            let delta = dataMap[dateKey][p.axisValue][deltaKey];
+                            if (delta !== null) {
+                                let diffStr = delta > 0 ? `+${delta.toLocaleString()}` : delta.toLocaleString();
                                 result += ` <span style="color: #FF8C42; font-weight: bold; margin-left: 5px;">(${diffStr})</span>`;
                             }
                         }
-                    }
-                    result += `</div>`;
-                });
-                return result;
+                        result += `</div>`;
+                    });
+                    return result;
+                };
             };
 
             chartHeart.hideLoading();
             chartHeart.setOption({
-                tooltip: { trigger: 'axis', confine: true, formatter: customTooltipFormatter },
+                tooltip: { trigger: 'axis', confine: true, formatter: makeTooltipFormatter('heartDelta') },
                 legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12, color: '#666' }, type: 'scroll' },
                 grid: { left: '2%', right: '5%', bottom: '10%', top: '18%', containLabel: true },
                 xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 1, fontSize: 11, color: '#888' }, axisLine: { lineStyle: { color: '#f0d6e4' } } },
@@ -546,7 +555,7 @@
 
             chartPower.hideLoading();
             chartPower.setOption({
-                tooltip: { trigger: 'axis', confine: true, formatter: customTooltipFormatter },
+                tooltip: { trigger: 'axis', confine: true, formatter: makeTooltipFormatter('powerDelta') },
                 legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12, color: '#666' }, type: 'scroll' },
                 grid: { left: '2%', right: '5%', bottom: '10%', top: '18%', containLabel: true },
                 xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 1, fontSize: 11, color: '#888' }, axisLine: { lineStyle: { color: '#f0d6e4' } } },
@@ -556,7 +565,7 @@
 
             chartTotal.hideLoading();
             chartTotal.setOption({
-                tooltip: { trigger: 'axis', confine: true, formatter: customTooltipFormatter },
+                tooltip: { trigger: 'axis', confine: true, formatter: makeTooltipFormatter('totalDelta') },
                 legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12, color: '#666' }, type: 'scroll' },
                 grid: { left: '2%', right: '5%', bottom: '10%', top: '18%', containLabel: true },
                 xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 1, fontSize: 11, color: '#888' }, axisLine: { lineStyle: { color: '#f0d6e4' } } },
