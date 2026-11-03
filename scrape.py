@@ -2,18 +2,17 @@ import asyncio
 import csv
 import os
 import re
-import json
 from datetime import datetime, timedelta, timezone
 from playwright.async_api import async_playwright
 
 # ============ 配置 ============
-URL_TEAM1 = "https://y.qq.com/tmead/promotion/h5/team-activity/detail?_hidehd=1&_miniplayer=1&adtag=img_share&singerId=6665073&activityId=17936311664035&searchid=568305526626555693,&p_share=waFlj7ebDqqbQF2OOC4PsiQYhkYZ9aIFBalaGNW5ISE&ADTAG=wxfshare&hosteuin=oiEq7e6k7Knqon**"
+URL_TEAM1 = "https://y.qq.com/tmead/promotion/h5/team-activity/detail?_hidehd=1&_miniplayer=1&adtag=sszd&singerId=6665073&activityId=17931826095559&searchid=113943832761792946,&hosteuin=ow657wSlownlon**&ADTAG=wxfshare"
 URL_POWER = "https://y.qq.com/tmead/promotion/h5/powering/1793152992875?_hidehd=1&_miniplayer=1&adtag=share_task&singerId=6665073&p_share=w2pZEizuC5V-xTHRIivoTwD_5f_DMRfGNgTtS7isP_4&hosteuin=oiEqow6FoiCA7n**&ADTAG=wxfshare"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_FILE = os.path.join(BASE_DIR, "power_data.csv")
-HTML_FILE = os.path.join(BASE_DIR, "index.html")
 
+# 北京时间 UTC+8
 BJT = timezone(timedelta(hours=8))
 
 
@@ -27,12 +26,14 @@ def parse_num(text):
 async def scrape_team(page, url):
     if not url: return {"今日心动人数": None, "团建电力值": None}
     
+    # 提速拦截：不加载图片、视频、字体
     await page.route("**/*", lambda route: route.abort() if route.request.resource_type in ["image", "media", "font"] else route.continue_())
     result = {"今日心动人数": None, "团建电力值": None}
 
     try:
         await page.goto(url, wait_until="domcontentloaded", timeout=15000)
         
+        # 等带有“本团今日心动”的元素出现
         heart_locator = page.locator("text=本团今日心动").first
         await heart_locator.wait_for(state="attached", timeout=8000) 
         parent_text = await heart_locator.evaluate("el => el.parentElement.innerText")
@@ -40,6 +41,7 @@ async def scrape_team(page, url):
         if num is not None and num > 0:
             result["今日心动人数"] = num
             
+        # 等带有 千分位/千分位 格式的数字出现
         power_locator = page.locator("text=/\\d{1,3}(?:,\\d{3})+\\s*\\/\\s*\\d{1,3}(?:,\\d{3})+/").first
         await power_locator.wait_for(state="attached", timeout=8000)
         power_text = await power_locator.inner_text()
@@ -154,82 +156,20 @@ def append_csv(row_dict):
     print(f"✅ [{formatted_time}] 写入完成。\n")
 
 
-# ============ 晚间截图逻辑（数据注入版，绝对成功） ============
-async def capture_html_screenshot(page, save_path):
-    if not os.path.exists(HTML_FILE):
-        print("⚠️ 找不到 index.html，跳过截图")
-        return
-    
-    print(f"🌙 正在向网页注入数据并截图 -> {os.path.basename(save_path)}")
-    
-    # 1. 读取 HTML 内容
-    with open(HTML_FILE, "r", encoding="utf-8") as f:
-        html_content = f.read()
-
-    # 2. 读取 CSV 数据
-    header, rows = load_all_rows()
-    csv_json = json.dumps(rows)
-
-    # 3. 强行把数据塞进 HTML
-    # 注意：这里动态获取表头，防止未来 CSV 列顺序变化
-    inject_script = f"""
-    <script>
-        window.Papa = {{
-            parse: function(url, config) {{
-                const injectedData = {csv_json};
-                const headerNames = {json.dumps(header)};
-                const parsedData = injectedData.map(row => {{
-                    let obj = {{}};
-                    row.forEach((val, idx) => {{ obj[headerNames[idx]] = val; }});
-                    return obj;
-                }});
-                if (config.complete) config.complete({{ data: parsedData }});
-            }}
-        }};
-    </script>
-    """
-    html_content = html_content.replace("</head>", inject_script + "</head>")
-
-    # 4. 保存为临时 HTML，并截图
-    temp_html_path = os.path.join(BASE_DIR, "_temp_screenshot.html")
-    with open(temp_html_path, "w", encoding="utf-8") as f:
-        f.write(html_content)
-
-    try:
-        await page.goto(f"file://{temp_html_path}", wait_until="networkidle", timeout=30000)
-        
-        # 等待 ECharts 的 canvas 渲染完成
-        await page.wait_for_selector("canvas", state="visible", timeout=15000)
-        await page.wait_for_timeout(2000) 
-        
-        # 截图
-        await page.screenshot(path=save_path, full_page=True)
-        print(f"📸 网页截图已保存：{save_path}")
-        
-    except Exception as e:
-        print(f"截图失败: {e}")
-    finally:
-        # 5. 清理临时文件
-        if os.path.exists(temp_html_path):
-            os.remove(temp_html_path)
-
-
 # ============ 主流程 ============
 async def run_once():
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context(
-            user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1",
-            viewport={"width": 1200, "height": 800}
-        )
+            user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1")
 
         page1 = await context.new_page()
         page2 = await context.new_page()
 
-        now_bjt = datetime.now(BJT)
-        data = {"时间": now_bjt.strftime("%Y-%m-%d %H:%M:%S")}
+        data = {"时间": datetime.now(BJT).strftime("%Y-%m-%d %H:%M:%S")}
         curr_dt = datetime.strptime(data["时间"], "%Y-%m-%d %H:%M:%S")
 
+        # 并行抓取
         t1, pwr = await asyncio.gather(
             scrape_team(page1, URL_TEAM1),
             scrape_power(page2),
@@ -238,28 +178,10 @@ async def run_once():
         data["今日心动人数1"], data["团建电力值1"] = t1["今日心动人数"], t1["团建电力值"]
         data["今日心动人数2"], data["团建电力值2"] = None, None
         data["总电力值"] = pwr["总电力值"]
-
-        # 写入 CSV
-        append_csv(data)
-
-        # ⭐ 测试逻辑：9:40 到 9:50 之间触发
-        if now_bjt.hour == 9 and 40 <= now_bjt.minute <= 50:
-            print("🧪 检测到测试时段 (9:40-9:50)，开始网页截图...")
-            
-            date_str = now_bjt.strftime("%Y-%m-%d")
-            chart_file_with_date = os.path.join(BASE_DIR, f"chart_{date_str}.png")
-            
-            page3 = await context.new_page()
-            try:
-                await capture_html_screenshot(page3, chart_file_with_date)
-            except Exception as e:
-                print(f"截图失败: {e}")
-            finally:
-                await page3.close()
-        else:
-            print("⏳ 当前不在测试时段 (9:40-9:50)，跳过截图。")
-
         await browser.close()
+
+    # 只写入 CSV，不再生成 PNG
+    append_csv(data)
 
 
 async def main():
