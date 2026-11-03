@@ -14,37 +14,81 @@
         }
         .container { width: 100%; max-width: 1600px; }
         
-        /* 顶部日期选择区 */
-        .header-bar {
-            display: flex; justify-content: center; align-items: center;
-            margin-bottom: 12px; gap: 10px;
+        /* 顶部无背景区域 */
+        .top-header {
+            text-align: center;
+            margin-bottom: 12px;
+            padding: 10px 0;
         }
-        .header-bar span {
-            color: #e74c3c; font-weight: bold; font-size: 15px;
+        .update-time {
+            color: #888;
+            font-size: 12px;
+            margin-bottom: 12px;
         }
-        .date-select {
-            font-size: 15px; font-weight: bold; color: #e74c3c;
-            background: white; border: 1px solid rgba(231,76,60,0.35);
-            border-radius: 12px; padding: 6px 16px;
-            outline: none; appearance: none;
+        
+        /* ==== 核心改动：合并标题与日期选择的容器 ==== */
+        .title-selector-wrapper {
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            background: #fff;
+            border: 1px solid rgba(231,76,60,0.35);
+            border-radius: 20px; /* 胶囊形状 */
+            padding: 8px 20px;
+            margin-bottom: 12px;
             box-shadow: 0 2px 8px rgba(231,76,60,0.08);
-            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .title-selector-wrapper:hover {
+            border-color: #e74c3c;
+            box-shadow: 0 4px 12px rgba(231,76,60,0.15);
+        }
+        
+        /* 显示的动态文字 */
+        .title-text {
+            color: #e74c3c;
+            font-size: 16px;
+            font-weight: bold;
+            pointer-events: none; /* 让点击事件穿透给 select */
+        }
+        
+        /* 小箭头 */
+        .dropdown-arrow {
+            width: 0; height: 0;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 5px solid #e74c3c;
+            margin-left: 8px;
+            pointer-events: none;
+        }
+        
+        /* 透明的原生下拉框，覆盖整个外壳以接管点击 */
+        .date-select-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            opacity: 0;
+            cursor: pointer;
+            font-size: 16px;
         }
 
-        /* 卡片通用样式，圆角统一 12px，保持原有白色背景和红色阴影 */
+        /* 统计框 */
+        .stats-wrap { text-align: center; padding: 0 10px; }
+        .stats {
+            font-size: 13px; font-weight: bold; color: #e74c3c;
+            background: #fdf7fa; border: 1px solid rgba(231,76,60,0.2);
+            border-radius: 12px; padding: 8px 16px; display: inline-block;
+            line-height: 1.6; box-shadow: 0 2px 6px rgba(231,76,60,0.04);
+        }
+        .stats .diff-up { color: #e74c3c; font-weight: bold; }
+        .stats .diff-down { color: #27ae60; font-weight: bold; }
+
+        /* 卡片通用样式 */
         .card {
             background: white; border-radius: 12px; box-shadow: 0 4px 12px rgba(231,76,60,0.08);
             padding: 12px 0; margin-bottom: 12px; overflow: hidden; border: 1px solid rgba(231,76,60,0.10);
             display: flex; flex-direction: column;
-        }
-        
-        /* 统计框，圆角统一 12px */
-        .stats-wrap { text-align: center; padding: 0 10px; }
-        .stats {
-            font-size: 12px; font-weight: bold; color: #e74c3c;
-            background: #fdf7fa; border: 1px solid rgba(231,76,60,0.2);
-            border-radius: 12px; padding: 8px 16px; display: inline-block;
-            line-height: 1.5;
         }
 
         .title {
@@ -96,7 +140,7 @@
         
         #loading { text-align: center; color: #e74c3c; font-size: 16px; margin-top: 50px; font-weight: bold; }
 
-        /* === 核心：两行两列网格布局 === */
+        /* 两行两列网格 */
         .grid-container {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -119,45 +163,28 @@
         
         <div id="main-content" style="display: none;">
             
-            <!-- 顶部日期选择区和统计 -->
-            <div class="card" style="padding: 12px 0; text-align: center;">
-                <div class="header-bar">
-                    <span>选择查看日期：</span>
-                    <select id="dateSelector" class="date-select"></select>
+            <!-- 顶部无背景区域 -->
+            <div class="top-header">
+                <div class="update-time" id="updateTime">数据最后更新：加载中...</div>
+                
+                <!-- ==== 合并后的标题与日期选择区 ==== -->
+                <div class="title-selector-wrapper">
+                    <span class="title-text" id="mergedTitle">团建数据表</span>
+                    <div class="dropdown-arrow"></div>
+                    <!-- 覆盖在标题上的透明 select -->
+                    <select id="dateSelector" class="date-select-overlay"></select>
                 </div>
+                
+                <br>
                 <div class="stats-wrap">
                     <div class="stats" id="tableSumStats"></div>
                 </div>
             </div>
 
-            <!-- 模块展示区（网格布局） -->
+            <!-- 模块展示区 -->
             <div class="grid-container">
                 
-                <!-- 模块1：心动人数趋势 -->
-                <div class="card">
-                    <div class="title" id="chartTitleHeart">心动人数趋势</div>
-                    <div class="chart-scroll-box">
-                        <div class="chart-wrapper" id="chartHeart"></div>
-                    </div>
-                </div>
-
-                <!-- 模块2：团建电力增幅趋势 -->
-                <div class="card">
-                    <div class="title" id="chartTitlePower">团建电力增幅趋势</div>
-                    <div class="chart-scroll-box">
-                        <div class="chart-wrapper" id="chartPower"></div>
-                    </div>
-                </div>
-
-                <!-- 模块3：总电力增幅趋势 -->
-                <div class="card">
-                    <div class="title" id="chartTitleTotal">总电力增幅趋势</div>
-                    <div class="chart-scroll-box">
-                        <div class="chart-wrapper" id="chartTotal"></div>
-                    </div>
-                </div>
-
-                <!-- 模块4：表格明细 -->
+                <!-- 第一行左侧：表格明细 -->
                 <div class="card">
                     <h3 id="tableTitle">数据明细 (最近10条)</h3>
                     <div class="table-scroll-box">
@@ -175,6 +202,30 @@
                             </thead>
                             <tbody></tbody>
                         </table>
+                    </div>
+                </div>
+
+                <!-- 第一行右侧：总电力增幅趋势 -->
+                <div class="card">
+                    <div class="title" id="chartTitleTotal">总电力增幅趋势</div>
+                    <div class="chart-scroll-box">
+                        <div class="chart-wrapper" id="chartTotal"></div>
+                    </div>
+                </div>
+
+                <!-- 第二行左侧：心动人数趋势 -->
+                <div class="card">
+                    <div class="title" id="chartTitleHeart">心动人数趋势</div>
+                    <div class="chart-scroll-box">
+                        <div class="chart-wrapper" id="chartHeart"></div>
+                    </div>
+                </div>
+
+                <!-- 第二行右侧：团建电力增幅趋势 -->
+                <div class="card">
+                    <div class="title" id="chartTitlePower">团建电力增幅趋势</div>
+                    <div class="chart-scroll-box">
+                        <div class="chart-wrapper" id="chartPower"></div>
                     </div>
                 </div>
 
@@ -214,7 +265,6 @@
             return isNaN(num) ? null : num;
         }
 
-        // 初始化图表
         const chartHeart = echarts.init(document.getElementById('chartHeart'));
         const chartPower = echarts.init(document.getElementById('chartPower'));
         const chartTotal = echarts.init(document.getElementById('chartTotal'));
@@ -236,10 +286,13 @@
 
                 const data = results.data;
                 const datesSet = new Set();
+                let latestTimeStr = '';
 
                 data.forEach(row => {
                     const timeStr = row["时间"];
                     if (!timeStr) return;
+
+                    if (timeStr > latestTimeStr) latestTimeStr = timeStr;
 
                     const datePart = timeStr.split(' ')[0].replace(/\//g, '-');
                     const dArr = datePart.split('-');
@@ -263,13 +316,17 @@
                     };
                 });
 
+                if (latestTimeStr) {
+                    document.getElementById('updateTime').innerText = `数据最后更新：${latestTimeStr}`;
+                }
+
                 const sortedDates = Array.from(datesSet).sort().reverse(); 
                 const selector = document.getElementById('dateSelector');
                 
                 sortedDates.forEach(date => {
                     const opt = document.createElement('option');
                     opt.value = date;
-                    opt.innerText = date;
+                    opt.innerText = date; 
                     selector.appendChild(opt);
                 });
 
@@ -296,6 +353,10 @@
             prevDateObj.setDate(prevDateObj.getDate() - 1);
             const prevDateStr = prevDateObj.toISOString().split('T')[0];
 
+            // 更新合并的主标题文字
+            const shortDate = selectedDate.substring(5);
+            document.getElementById('mergedTitle').innerText = `团建数据表 · ${shortDate}`;
+
             let selectedTotalDelta = 0;
             let prevTotalDelta = 0;
             
@@ -311,11 +372,20 @@
             }
             
             function fmtW(v) { return (v / 10000).toFixed(1) + 'w'; }
-            document.getElementById('tableSumStats').innerHTML = 
-                `${prevDateStr} 团建总增幅: <span style="color:#e74c3c;">${fmtW(prevTotalDelta)}</span><br>${selectedDate} 团建总增幅: <span style="color:#e74c3c;">${fmtW(selectedTotalDelta)}</span>`;
             
-            // 标题统一格式
-            const shortDate = selectedDate.substring(5);
+            const diff = selectedTotalDelta - prevTotalDelta;
+            let diffStr = '';
+            if (diff > 0) {
+                diffStr = `<span class="diff-up">(+${fmtW(diff)})</span>`;
+            } else if (diff < 0) {
+                diffStr = `<span class="diff-down">(${fmtW(diff)})</span>`;
+            } else {
+                diffStr = `(0)`;
+            }
+
+            document.getElementById('tableSumStats').innerHTML = 
+                `团建总增幅：${prevDateStr.substring(5)} <span style="color:#333;">${fmtW(prevTotalDelta)}</span> | ${selectedDate.substring(5)} <span style="color:#333;">${fmtW(selectedTotalDelta)}</span> ${diffStr}`;
+            
             document.getElementById('tableTitle').innerText = `${shortDate} · 数据明细 (最近10条)`;
             document.getElementById('chartTitleHeart').innerText = `${shortDate} · 心动人数`;
             document.getElementById('chartTitlePower').innerText = `${shortDate} · 团建电力增幅`;
@@ -370,11 +440,9 @@
             const powerSeries = [];
             const totalSeries = [];
             
-            // === 今天（选中日）的数据：橙色 ===
             if (dataMap[selectedDate]) {
                 const shortName = selectedDate.substring(5); 
                 
-                // 图例只写日期
                 heartSeries.push({
                     name: shortName, type: 'line', data: getSeriesData(selectedDate, 'heart'),
                     smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#FF8C42' }, lineStyle: { color: '#FF8C42', width: 2.5 }
@@ -391,7 +459,6 @@
                 });
             }
             
-            // === 昨天（对比日）的数据：粉色 ===
             if (dataMap[prevDateStr]) {
                 const shortName = prevDateStr.substring(5);
                 
@@ -411,7 +478,6 @@
                 });
             }
 
-            // === 其他历史日期的虚线（全灰色，图例也是灰） ===
             const allDates = Object.keys(dataMap).sort();
             allDates.forEach(date => {
                 if (date === selectedDate || date === prevDateStr) return;
@@ -440,43 +506,36 @@
                 });
             });
 
-            // 渲染心动图
             chartHeart.hideLoading();
             chartHeart.setOption({
                 tooltip: { trigger: 'axis', confine: true },
                 legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12, color: '#666' }, type: 'scroll' },
                 grid: { left: '2%', right: '5%', bottom: '10%', top: '18%', containLabel: true },
                 xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 0, fontSize: 11, color: '#888' }, axisLine: { lineStyle: { color: '#f0d6e4' } } },
-                // 去掉了 yAxis 的 name
                 yAxis: { type: 'value', scale: true, axisLabel: { fontSize: 11, color: '#888', formatter: function(v) { return v >= 10000 ? (v / 10000) + 'w' : v; } }, axisLine: { lineStyle: { color: '#f0d6e4' } }, splitLine: { lineStyle: { color: '#faf0f6' } } },
                 series: heartSeries
             }, true);
 
-            // 渲染团建增幅图
             chartPower.hideLoading();
             chartPower.setOption({
                 tooltip: { trigger: 'axis', confine: true },
                 legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12, color: '#666' }, type: 'scroll' },
                 grid: { left: '2%', right: '5%', bottom: '10%', top: '18%', containLabel: true },
                 xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 0, fontSize: 11, color: '#888' }, axisLine: { lineStyle: { color: '#f0d6e4' } } },
-                // 去掉了 yAxis 的 name
                 yAxis: { type: 'value', scale: true, axisLabel: { fontSize: 11, color: '#888', formatter: function(v) { return v >= 1000000 ? (v / 1000000).toFixed(1) + 'm' : v; } }, axisLine: { lineStyle: { color: '#f0d6e4' } }, splitLine: { lineStyle: { color: '#faf0f6' } } },
                 series: powerSeries
             }, true);
 
-            // 渲染总电增幅图
             chartTotal.hideLoading();
             chartTotal.setOption({
                 tooltip: { trigger: 'axis', confine: true },
                 legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12, color: '#666' }, type: 'scroll' },
                 grid: { left: '2%', right: '5%', bottom: '10%', top: '18%', containLabel: true },
                 xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 0, fontSize: 11, color: '#888' }, axisLine: { lineStyle: { color: '#f0d6e4' } } },
-                // 去掉了 yAxis 的 name
                 yAxis: { type: 'value', scale: true, axisLabel: { fontSize: 11, color: '#888', formatter: function(v) { return v >= 1000000 ? (v / 1000000).toFixed(1) + 'm' : v; } }, axisLine: { lineStyle: { color: '#f0d6e4' } }, splitLine: { lineStyle: { color: '#faf0f6' } } },
                 series: totalSeries
             }, true);
 
-            // 窗口尺寸改变时自适应所有图表
             setTimeout(() => {
                 chartHeart.resize();
                 chartPower.resize();
