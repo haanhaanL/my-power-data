@@ -8,7 +8,8 @@
     <script src="https://cdn.bootcdn.net/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
         body {
-            margin: 0; padding: 8px; background-color: #faf7f9;
+            /* 极浅的主题色透明背景 */
+            margin: 0; padding: 8px; background-color: rgba(231,76,60,0.04);
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             display: flex; flex-direction: column; align-items: center; overflow-x: hidden;
         }
@@ -31,17 +32,17 @@
             font-family: inherit;
         }
 
-        /* 卡片风格 */
+        /* 卡片风格，带极浅透明底和红润阴影 */
         .card {
-            background: white; border-radius: 12px; box-shadow: 0 4px 12px rgba(231,76,60,0.08);
-            padding: 12px 0; margin-bottom: 12px; overflow: hidden; border: 1px solid rgba(231,76,60,0.10);
+            background: rgba(255, 255, 255, 0.95); border-radius: 12px; box-shadow: 0 4px 12px rgba(231,76,60,0.08);
+            padding: 12px 0; margin-bottom: 12px; overflow: hidden; border: 1px solid rgba(231,76,60,0.1);
         }
         
         /* 统计框 */
         .stats-wrap { text-align: center; padding: 0 10px; }
         .stats {
             font-size: 12px; font-weight: bold; color: #e74c3c;
-            background: #fdf7fa; border: 1px solid rgba(231,76,60,0.2);
+            background: rgba(231,76,60,0.05); border: 1px solid rgba(231,76,60,0.2);
             border-radius: 20px; padding: 8px 16px; display: inline-block;
             line-height: 1.5;
         }
@@ -61,19 +62,19 @@
         .chart-scroll-box { overflow-y: hidden; }
         .chart-wrapper { width: 900px; height: 350px; }
 
-        /* 表格样式（复刻精致风格） */
+        /* 表格样式 */
         table {
             width: 100%; border-collapse: separate; border-spacing: 0;
             font-size: 12px; min-width: 850px;
         }
         th, td {
-            padding: 10px 6px; text-align: center; border-bottom: 1px solid #f3e6ee;
+            padding: 10px 6px; text-align: center; border-bottom: 1px solid rgba(231,76,60,0.1);
             white-space: nowrap; line-height: 1.5;
         }
         th {
             background-color: #e74c3c; color: #ffffff; font-weight: bold;
             font-size: 12px; position: sticky; top: 0; z-index: 2;
-            border: 1px solid rgba(255, 255, 255, 0.3); box-shadow: 0 1px 0 #f3e6ee;
+            border: 1px solid rgba(255, 255, 255, 0.2); box-shadow: 0 1px 0 rgba(231,76,60,0.1);
         }
         
         /* 首列固定 */
@@ -82,7 +83,7 @@
             background-color: #ffffff; font-weight: bold;
         }
         th:first-child { background-color: #e74c3c; color: #ffffff; z-index: 20; }
-        tbody tr:nth-child(even) { background-color: #e74c3c0a; }
+        tbody tr:nth-child(even) { background-color: rgba(231,76,60,0.03); }
         tbody tr:nth-child(even) td:first-child { background-color: #fcf5f4; }
         
         /* 数值样式 */
@@ -120,7 +121,7 @@
 
             <!-- 表格区域 -->
             <div class="card">
-                <h3 id="tableTitle">数据明细 (最近10条)</h3>
+                <h3 id="tableTitle">数据明细</h3>
                 <div class="table-scroll-box">
                     <table id="dataTable">
                         <thead>
@@ -141,21 +142,21 @@
 
             <!-- 图表区域 -->
             <div class="card">
-                <div class="title">心动人数趋势 (👈左右滑动👉)</div>
+                <div class="title" id="chartTitleHeart">心动人数趋势 (👈左右滑动👉)</div>
                 <div class="chart-scroll-box">
                     <div class="chart-wrapper" id="chartHeart"></div>
                 </div>
             </div>
 
             <div class="card">
-                <div class="title">团建电力增幅趋势 (👈左右滑动👉)</div>
+                <div class="title" id="chartTitlePower">团建电力增幅趋势 (👈左右滑动👉)</div>
                 <div class="chart-scroll-box">
                     <div class="chart-wrapper" id="chartPower" style="height: 300px;"></div>
                 </div>
             </div>
 
             <div class="card">
-                <div class="title">总电力增幅趋势 (👈左右滑动👉)</div>
+                <div class="title" id="chartTitleTotal">总电力增幅趋势 (👈左右滑动👉)</div>
                 <div class="chart-scroll-box">
                     <div class="chart-wrapper" id="chartTotal" style="height: 300px;"></div>
                 </div>
@@ -294,7 +295,13 @@
             function fmtW(v) { return (v / 10000).toFixed(1) + 'w'; }
             document.getElementById('tableSumStats').innerHTML = 
                 `${prevDateStr} 团建总增幅: <span style="color:#e74c3c;">${fmtW(prevTotalDelta)}</span><br>${selectedDate} 团建总增幅: <span style="color:#e74c3c;">${fmtW(selectedTotalDelta)}</span>`;
-            document.getElementById('tableTitle').innerText = `${selectedDate} 数据明细 (最近10条)`;
+            
+            // 标题统一为日期格式
+            const shortDate = selectedDate.substring(5);
+            document.getElementById('tableTitle').innerText = `${shortDate} · 数据明细 (最近10条)`;
+            document.getElementById('chartTitleHeart').innerText = `${shortDate} · 心动人数 (👈左右滑动👉)`;
+            document.getElementById('chartTitlePower').innerText = `${shortDate} · 团建电力增幅 (👈左右滑动👉)`;
+            document.getElementById('chartTitleTotal').innerText = `${shortDate} · 总电力增幅 (👈左右滑动👉)`;
 
             let dayDataList = [];
             if (dataMap[selectedDate]) {
@@ -349,18 +356,19 @@
             if (dataMap[selectedDate]) {
                 const shortName = selectedDate.substring(5); 
                 
+                // 图例只写日期
                 heartSeries.push({
-                    name: shortName + '心动', type: 'line', data: getSeriesData(selectedDate, 'heart'),
+                    name: shortName, type: 'line', data: getSeriesData(selectedDate, 'heart'),
                     smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#FF8C42' }, lineStyle: { color: '#FF8C42', width: 2.5 }
                 });
                 
                 powerSeries.push({
-                    name: shortName + '团建增幅', type: 'line', data: getSeriesData(selectedDate, 'powerDelta'),
+                    name: shortName, type: 'line', data: getSeriesData(selectedDate, 'powerDelta'),
                     smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#FF8C42' }, lineStyle: { color: '#FF8C42', width: 2.5 }
                 });
 
                 totalSeries.push({
-                    name: shortName + '总电增幅', type: 'line', data: getSeriesData(selectedDate, 'totalDelta'),
+                    name: shortName, type: 'line', data: getSeriesData(selectedDate, 'totalDelta'),
                     smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#FF8C42' }, lineStyle: { color: '#FF8C42', width: 2.5 }
                 });
             }
@@ -370,17 +378,17 @@
                 const shortName = prevDateStr.substring(5);
                 
                 heartSeries.push({
-                    name: shortName + '心动', type: 'line', data: getSeriesData(prevDateStr, 'heart'),
+                    name: shortName, type: 'line', data: getSeriesData(prevDateStr, 'heart'),
                     smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#FFB3C6' }, lineStyle: { color: '#FFB3C6', width: 2 }
                 });
                 
                 powerSeries.push({
-                    name: shortName + '团建增幅', type: 'line', data: getSeriesData(prevDateStr, 'powerDelta'),
+                    name: shortName, type: 'line', data: getSeriesData(prevDateStr, 'powerDelta'),
                     smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#FFB3C6' }, lineStyle: { color: '#FFB3C6', width: 2 }
                 });
 
                 totalSeries.push({
-                    name: shortName + '总电增幅', type: 'line', data: getSeriesData(prevDateStr, 'totalDelta'),
+                    name: shortName, type: 'line', data: getSeriesData(prevDateStr, 'totalDelta'),
                     smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#FFB3C6' }, lineStyle: { color: '#FFB3C6', width: 2 }
                 });
             }
@@ -390,22 +398,23 @@
             allDates.forEach(date => {
                 if (date === selectedDate || date === prevDateStr) return;
                 
+                const shortName = date.substring(5);
                 heartSeries.push({
-                    name: date.substring(5) + '心动', type: 'line', data: getSeriesData(date, 'heart'),
+                    name: shortName, type: 'line', data: getSeriesData(date, 'heart'),
                     smooth: false, symbol: 'none', 
                     itemStyle: { color: '#b0b0b0' }, 
                     lineStyle: { color: '#b0b0b0', width: 1.5, type: 'dashed' },
                     emphasis: { disabled: true }
                 });
                 powerSeries.push({
-                    name: date.substring(5) + '团建增幅', type: 'line', data: getSeriesData(date, 'powerDelta'),
+                    name: shortName, type: 'line', data: getSeriesData(date, 'powerDelta'),
                     smooth: false, symbol: 'none', 
                     itemStyle: { color: '#b0b0b0' }, 
                     lineStyle: { color: '#b0b0b0', width: 1.5, type: 'dashed' },
                     emphasis: { disabled: true }
                 });
                 totalSeries.push({
-                    name: date.substring(5) + '总电增幅', type: 'line', data: getSeriesData(date, 'totalDelta'),
+                    name: shortName, type: 'line', data: getSeriesData(date, 'totalDelta'),
                     smooth: false, symbol: 'none', 
                     itemStyle: { color: '#b0b0b0' }, 
                     lineStyle: { color: '#b0b0b0', width: 1.5, type: 'dashed' },
@@ -419,8 +428,9 @@
                 tooltip: { trigger: 'axis', confine: true },
                 legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12, color: '#666' }, type: 'scroll' },
                 grid: { left: '2%', right: '5%', bottom: '10%', top: '18%', containLabel: true },
-                xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 0, fontSize: 11, color: '#888' }, axisLine: { lineStyle: { color: '#f0d6e4' } } },
-                yAxis: { type: 'value', name: '人数', scale: true, axisLabel: { fontSize: 11, color: '#888', formatter: function(v) { return v >= 10000 ? (v / 10000) + 'w' : v; } }, axisLine: { lineStyle: { color: '#f0d6e4' } }, splitLine: { lineStyle: { color: '#faf0f6' } } },
+                xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 0, fontSize: 11, color: '#888' }, axisLine: { lineStyle: { color: 'rgba(231,76,60,0.2)' } } },
+                // 去掉了 yAxis 的 name
+                yAxis: { type: 'value', scale: true, axisLabel: { fontSize: 11, color: '#888', formatter: function(v) { return v >= 10000 ? (v / 10000) + 'w' : v; } }, axisLine: { lineStyle: { color: 'rgba(231,76,60,0.2)' } }, splitLine: { lineStyle: { color: 'rgba(231,76,60,0.05)' } } },
                 series: heartSeries
             }, true);
 
@@ -430,8 +440,9 @@
                 tooltip: { trigger: 'axis', confine: true },
                 legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12, color: '#666' }, type: 'scroll' },
                 grid: { left: '2%', right: '5%', bottom: '10%', top: '18%', containLabel: true },
-                xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 0, fontSize: 11, color: '#888' }, axisLine: { lineStyle: { color: '#f0d6e4' } } },
-                yAxis: { type: 'value', name: '增幅', scale: true, axisLabel: { fontSize: 11, color: '#888', formatter: function(v) { return v >= 1000000 ? (v / 1000000).toFixed(1) + 'm' : v; } }, axisLine: { lineStyle: { color: '#f0d6e4' } }, splitLine: { lineStyle: { color: '#faf0f6' } } },
+                xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 0, fontSize: 11, color: '#888' }, axisLine: { lineStyle: { color: 'rgba(231,76,60,0.2)' } } },
+                // 去掉了 yAxis 的 name
+                yAxis: { type: 'value', scale: true, axisLabel: { fontSize: 11, color: '#888', formatter: function(v) { return v >= 1000000 ? (v / 1000000).toFixed(1) + 'm' : v; } }, axisLine: { lineStyle: { color: 'rgba(231,76,60,0.2)' } }, splitLine: { lineStyle: { color: 'rgba(231,76,60,0.05)' } } },
                 series: powerSeries
             }, true);
 
@@ -441,8 +452,9 @@
                 tooltip: { trigger: 'axis', confine: true },
                 legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12, color: '#666' }, type: 'scroll' },
                 grid: { left: '2%', right: '5%', bottom: '10%', top: '18%', containLabel: true },
-                xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 0, fontSize: 11, color: '#888' }, axisLine: { lineStyle: { color: '#f0d6e4' } } },
-                yAxis: { type: 'value', name: '增幅', scale: true, axisLabel: { fontSize: 11, color: '#888', formatter: function(v) { return v >= 1000000 ? (v / 1000000).toFixed(1) + 'm' : v; } }, axisLine: { lineStyle: { color: '#f0d6e4' } }, splitLine: { lineStyle: { color: '#faf0f6' } } },
+                xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 0, fontSize: 11, color: '#888' }, axisLine: { lineStyle: { color: 'rgba(231,76,60,0.2)' } } },
+                // 去掉了 yAxis 的 name
+                yAxis: { type: 'value', scale: true, axisLabel: { fontSize: 11, color: '#888', formatter: function(v) { return v >= 1000000 ? (v / 1000000).toFixed(1) + 'm' : v; } }, axisLine: { lineStyle: { color: 'rgba(231,76,60,0.2)' } }, splitLine: { lineStyle: { color: 'rgba(231,76,60,0.05)' } } },
                 series: totalSeries
             }, true);
         }
