@@ -2,6 +2,7 @@ import asyncio
 import csv
 import os
 import re
+import json
 from datetime import datetime, timedelta, timezone
 from playwright.async_api import async_playwright
 
@@ -13,7 +14,6 @@ from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
 import matplotlib.font_manager
 
-# 强制刷新字体缓存，确保 CI 新装字体能被识别
 matplotlib.font_manager._load_fontmanager(try_read_cache=False)
 
 # ============ 配置 ============
@@ -24,11 +24,13 @@ URL_POWER = "https://y.qq.com/tmead/promotion/h5/powering/1793152992875?_hidehd=
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_FILE = os.path.join(BASE_DIR, "power_data.csv")
 CHART_FILE = os.path.join(BASE_DIR, "chart.png")
+HTML_FILE = os.path.join(BASE_DIR, "index.html")
+TEMPLATE_FILE = os.path.join(BASE_DIR, "template.html")
 
 BJT = timezone(timedelta(hours=8))
 
 
-# ============ 抓取与存储（已优化提速） ============
+# ============ 抓取与存储（已优化提速防漏） ============
 def parse_num(text):
     if not text: return None
     m = re.search(r"[\d,]+", str(text))
@@ -38,14 +40,11 @@ def parse_num(text):
 async def scrape_team(page, url):
     if not url: return {"今日心动人数": None, "团建电力值": None}
     
-    # 提速拦截：不加载图片、视频、字体，大幅减少等待时间
     await page.route("**/*", lambda route: route.abort() if route.request.resource_type in ["image", "media", "font"] else route.continue_())
-    
     await page.goto(url, wait_until="domcontentloaded", timeout=90000)
 
     result = {"今日心动人数": None, "团建电力值": None}
 
-    # 防漏轮询：每秒查一次，抓全了就立刻结束，不用死等 5 秒
     for _ in range(20):
         try:
             heart_ele = page.locator("text=本团今日心动").first
@@ -74,20 +73,18 @@ async def scrape_power(page):
     await page.goto(URL_POWER, wait_until="domcontentloaded", timeout=90000)
     
     result = {"总电力值": None}
-    
     for _ in range(20):
         try:
             body_text = await page.locator("body").inner_text()
             nums = re.findall(r"\d{1,3}(?:,\d{3})+", body_text)
             if nums:
                 max_num = max(int(n.replace(",", "")) for n in nums)
-                if max_num > 1000000: # 兜底阈值，防抓错
+                if max_num > 1000000:
                     result["总电力值"] = max_num
                     break
         except:
             pass
         await page.wait_for_timeout(1000)
-        
     return result
 
 
@@ -108,10 +105,8 @@ def parse_dt_loose(s):
     s = re.sub(r'(\d+[/-]\d+[/-]\d+)\s+(\d{1}):', r'\1 0\2:', s)
     s = s.strip().replace("/", "-")
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
-        try:
-            return datetime.strptime(s, fmt)
-        except:
-            pass
+        try: return datetime.strptime(s, fmt)
+        except: pass
     return None
 
 
@@ -153,8 +148,7 @@ def append_csv(row_dict):
             prev_val_str = prev_row[col_idx]
             if prev_val_str == "" or prev_val_str is None: return ""
             return int(curr_val) - int(prev_val_str)
-        except:
-            return ""
+        except: return ""
 
     row = [
         formatted_time,
@@ -168,27 +162,23 @@ def append_csv(row_dict):
     with open(CSV_FILE, "a", encoding="utf-8-sig", newline="") as f:
         writer = csv.writer(f)
         if not file_exists:
-            writer.writerow(
-                ["时间", "心动人数1", "增幅", "团建电力值1", "增幅", "心动人数2", "增幅", "团建电力值2", "增幅",
-                 "总电力值", "增幅"])
+            writer.writerow(["时间", "心动人数1", "增幅", "团建电力值1", "增幅", "心动人数2", "增幅", "团建电力值2", "增幅", "总电力值", "增幅"])
         writer.writerow(row)
     print(f"✅ [{formatted_time}] 写入完成。\n")
 
 
-# ============ 图表生成（完全保留原样） ============
-# ...（从这里往下，直到 run_once 之前，代码保持你原版一模一样，没有任何改动）...
-
+# ============ 图表生成（保留原版） ============
 def to_float(v):
-    try:
-        return float(v) if v not in (None, "") else None
-    except:
-        return None
+    try: return float(v) if v not in (None, "") else None
+    except: return None
+
 
 def fmt_w(v):
     if v is None: return ""
     sign = "-" if v < 0 else ""
     w = abs(v) / 10000.0
     return f"{sign}{int(round(w))}w" if abs(w - round(w)) < 1e-9 else f"{sign}{w:.1f}w"
+
 
 def generate_chart(target_date, save_path, is_final=False):
     header, rows = load_all_rows()
@@ -209,7 +199,6 @@ def generate_chart(target_date, save_path, is_final=False):
         if dt.hour == 0:
             data_map[f"{target_date_str}_0"] = rec
             continue
-
         if dt.hour == 23 and dt.minute >= 55:
             next_day_str = (dt + timedelta(days=1)).strftime('%Y-%m-%d')
             data_map[f"{next_day_str}_0_2359"] = rec
@@ -228,49 +217,33 @@ def generate_chart(target_date, save_path, is_final=False):
     active_dates = set()
     for k in data_map.keys():
         parts = k.split("_")
-        if len(parts) >= 2:
-            active_dates.add(parts[0])
+        if len(parts) >= 2: active_dates.add(parts[0])
     week_dates_str = sorted([d for d in active_dates if start_week_date.strftime("%Y-%m-%d") <= d <= today_str])
     week_dates = [datetime.strptime(d, "%Y-%m-%d").date() for d in week_dates_str]
     if not week_dates: week_dates = [yest_date, target_date]
 
     hours = list(range(0, 25))
 
-    plt.rcParams["font.sans-serif"] = ["WenQuanYi Zen Hei", "WenQuanYi Micro Hei", "Microsoft YaHei", "SimHei",
-                                       "Arial Unicode MS", "DejaVu Sans"]
+    plt.rcParams["font.sans-serif"] = ["WenQuanYi Zen Hei", "WenQuanYi Micro Hei", "Microsoft YaHei", "SimHei", "Arial Unicode MS", "DejaVu Sans"]
     plt.rcParams["axes.unicode_minus"] = False
 
     fig, axes = plt.subplots(2, 1, figsize=(14, 10), sharex=True)
-    fig.suptitle(f"本周数据对比 (结算日: {target_date})" if is_final else f"今天({target_date}) 本周数据对比",
-                 fontsize=18, fontweight="bold", color="#D35400", y=0.96)
+    fig.suptitle(f"本周数据对比 (结算日: {target_date})" if is_final else f"今天({target_date}) 本周数据对比", fontsize=18, fontweight="bold", color="#D35400", y=0.96)
 
-    today_delta_sum = 0
+    today_delta_sum, yest_delta_sum = 0, 0
     for h in range(0, 25):
         if h == 0:
-            rec = data_map.get(f"{today_str}_0")
+            rec_t, rec_y = data_map.get(f"{today_str}_0"), data_map.get(f"{yest_str}_0")
         elif h == 24:
-            rec = data_map.get(f"{next_str}_0_2359") or data_map.get(f"{next_str}_0")
+            rec_t = data_map.get(f"{next_str}_0_2359") or data_map.get(f"{next_str}_0")
+            rec_y = data_map.get(f"{today_str}_0_2359") or data_map.get(f"{today_str}_0")
         else:
-            rec = data_map.get(f"{today_str}_{h}")
-        if rec and rec["delta"] is not None:
-            today_delta_sum += rec["delta"]
-
-    yest_delta_sum = 0
-    for h in range(0, 25):
-        if h == 0:
-            rec = data_map.get(f"{yest_str}_0")
-        elif h == 24:
-            rec = data_map.get(f"{today_str}_0_2359") or data_map.get(f"{today_str}_0")
-        else:
-            rec = data_map.get(f"{yest_str}_{h}")
-        if rec and rec["delta"] is not None:
-            yest_delta_sum += rec["delta"]
+            rec_t, rec_y = data_map.get(f"{today_str}_{h}"), data_map.get(f"{yest_str}_{h}")
+        if rec_t and rec_t["delta"] is not None: today_delta_sum += rec_t["delta"]
+        if rec_y and rec_y["delta"] is not None: yest_delta_sum += rec_y["delta"]
 
     fig.text(0.5, 0.91, f"昨日增幅总和: {fmt_w(yest_delta_sum)}   |   今日增幅总和: {fmt_w(today_delta_sum)}",
-             ha='center', fontsize=14, fontweight='bold', color='#555555',
-             bbox=dict(facecolor='#FDF2E9', edgecolor='#FFB27A', boxstyle='round,pad=0.5'))
-
-    color_yest_line, color_today_line = "#FFB3C6", "#FF8C42"
+             ha='center', fontsize=14, fontweight='bold', color='#555555', bbox=dict(facecolor='#FDF2E9', edgecolor='#FFB27A', boxstyle='round,pad=0.5'))
 
     # 子图1
     ax1 = axes[0]
@@ -289,19 +262,16 @@ def generate_chart(target_date, save_path, is_final=False):
 
     yest_heart, today_heart = [], []
     for h in hours:
-        if h == 0:
-            y_data = data_map.get(f"{yest_str}_0"); t_data = data_map.get(f"{today_str}_0")
+        if h == 0: y_data, t_data = data_map.get(f"{yest_str}_0"), data_map.get(f"{today_str}_0")
         elif h == 24:
             y_data = data_map.get(f"{today_str}_0_2359") or data_map.get(f"{today_str}_0")
             t_data = data_map.get(f"{next_str}_0_2359") or data_map.get(f"{next_str}_0")
-        else:
-            y_data = data_map.get(f"{yest_str}_{h}"); t_data = data_map.get(f"{today_str}_{h}")
-        y_val = y_data["heart"] if y_data and y_data["heart"] is not None else float("nan")
-        t_val = t_data["heart"] if t_data and t_data["heart"] is not None else float("nan")
-        yest_heart.append(y_val); today_heart.append(t_val)
+        else: y_data, t_data = data_map.get(f"{yest_str}_{h}"), data_map.get(f"{today_str}_{h}")
+        yest_heart.append(y_data["heart"] if y_data and y_data["heart"] is not None else float("nan"))
+        today_heart.append(t_data["heart"] if t_data and t_data["heart"] is not None else float("nan"))
 
-    ax1.plot(hours, yest_heart, marker="o", linestyle="-", color=color_yest_line, linewidth=2.0, markersize=6, label="昨天心动人数")
-    ax1.plot(hours, today_heart, marker="o", linestyle="-", color=color_today_line, linewidth=2.5, markersize=6, label="今天心动人数")
+    ax1.plot(hours, yest_heart, marker="o", linestyle="-", color="#FFB3C6", linewidth=2.0, markersize=6, label="昨天心动人数")
+    ax1.plot(hours, today_heart, marker="o", linestyle="-", color="#FF8C42", linewidth=2.5, markersize=6, label="今天心动人数")
 
     for h, val in zip(hours, yest_heart):
         if val is not None and not (isinstance(val, float) and val != val):
@@ -373,8 +343,8 @@ def generate_chart(target_date, save_path, is_final=False):
         if x == 0: return "00:00"
         if x == 24: return "24:00"
         return f"{int(x):02d}:00"
-
     formatter = ticker.FuncFormatter(time_formatter)
+
     ax2.xaxis.set_major_formatter(formatter)
     ax2.xaxis.set_major_locator(ticker.MultipleLocator(1))
     ax2.set_xlabel("时段", fontsize=11)
@@ -403,6 +373,87 @@ def generate_chart(target_date, save_path, is_final=False):
     print(f"图表已生成：{save_path}")
 
 
+# ============ HTML 数据注入与生成 ============
+def generate_html(target_date, save_path, template_path):
+    if not os.path.exists(template_path):
+        print(f"找不到 HTML 模板文件: {template_path}")
+        return
+
+    header, rows = load_all_rows()
+    if not rows: return
+
+    # 1. 提取最近 10 条数据
+    recent_rows = [r for r in rows[-10:] if len(r) > 0]
+
+    # 2. 提取图表数据
+    data_map = {}
+    for r in rows:
+        if len(r) < 10: continue
+        dt = parse_dt_loose(r[0])
+        if dt is None: continue
+        if dt.minute > 10 and dt.minute < 55: continue
+
+        target_date_str = dt.strftime('%Y-%m-%d')
+        rec = {"hour": dt.hour, "heart": to_float(r[1]), "delta": to_float(r[4])}
+        
+        if dt.hour == 0:
+            data_map[f"{target_date_str}_0"] = rec
+            continue
+        if dt.hour == 23 and dt.minute >= 55:
+            next_day_str = (dt + timedelta(days=1)).strftime('%Y-%m-%d')
+            data_map[f"{next_day_str}_0_2359"] = rec
+            data_map.setdefault(f"{target_date_str}_23", rec)
+            continue
+        key = f"{target_date_str}_{dt.hour}"
+        data_map.setdefault(key, rec)
+
+    today_str = target_date.strftime("%Y-%m-%d")
+    yest_date = target_date - timedelta(days=1)
+    yest_str = yest_date.strftime("%Y-%m-%d")
+    next_str = (target_date + timedelta(days=1)).strftime("%Y-%m-%d")
+
+    hours = list(range(25))
+    yest_heart, today_heart, yest_delta, today_delta = [], [], [], []
+    
+    for h in hours:
+        if h == 0:
+            y_data = data_map.get(f"{yest_str}_0"); t_data = data_map.get(f"{today_str}_0")
+        elif h == 24:
+            y_data = data_map.get(f"{today_str}_0_2359") or data_map.get(f"{today_str}_0")
+            t_data = data_map.get(f"{next_str}_0_2359") or data_map.get(f"{next_str}_0")
+        else:
+            y_data = data_map.get(f"{yest_str}_{h}"); t_data = data_map.get(f"{today_str}_{h}")
+            
+        yest_heart.append(y_data["heart"] if y_data else None)
+        today_heart.append(t_data["heart"] if t_data else None)
+        yest_delta.append(y_data["delta"] if y_data else None)
+        today_delta.append(t_data["delta"] if t_data else None)
+
+    # 3. 组装 JSON 数据
+    chart_data = {
+        "target_date": today_str,
+        "hours": [f"{h:02d}:00" for h in hours],
+        "yest_heart": yest_heart,
+        "today_heart": today_heart,
+        "yest_delta": yest_delta,
+        "today_delta": today_delta,
+        "header": header,
+        "recent_rows": list(reversed(recent_rows))  # 最新的在最上面
+    }
+
+    js_json = json.dumps(chart_data, ensure_ascii=False)
+
+    # 4. 读取模板并替换
+    with open(template_path, "r", encoding="utf-8") as f:
+        html_template = f.read()
+
+    html_content = html_template.replace("__DATA_PLACEHOLDER__", js_json)
+
+    with open(save_path, "w", encoding="utf-8") as f:
+        f.write(html_content)
+    print(f"网页已生成：{save_path}")
+
+
 # ============ 主流程 ============
 async def run_once():
     async with async_playwright() as p:
@@ -416,7 +467,6 @@ async def run_once():
         data = {"时间": datetime.now(BJT).strftime("%Y-%m-%d %H:%M:%S")}
         curr_dt = datetime.strptime(data["时间"], "%Y-%m-%d %H:%M:%S")
 
-        # 并行抓取
         t1, pwr = await asyncio.gather(
             scrape_team(page1, URL_TEAM1),
             scrape_power(page2),
@@ -430,8 +480,9 @@ async def run_once():
     append_csv(data)
     try:
         generate_chart(curr_dt.date(), CHART_FILE)
+        generate_html(curr_dt.date(), HTML_FILE, TEMPLATE_FILE)
     except Exception as e:
-        print(f"生成图表失败: {e}")
+        print(f"生成图表/网页失败: {e}")
 
 
 async def main():
