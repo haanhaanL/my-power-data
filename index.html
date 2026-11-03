@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>团建数据实况</title>
+    <title>数据实时战况</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     <script src="https://cdn.bootcdn.net/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
@@ -203,7 +203,7 @@
 
                 <!-- 第一行右侧：总电力增幅趋势（拉高） -->
                 <div class="card">
-                    <div class="title" id="chartTitleTotal">总电力增幅趋势</div>
+                    <div class="title" id="chartTitleTotal">总电力增幅</div>
                     <div class="chart-scroll-box">
                         <div class="chart-wrapper chart-wrapper-total" id="chartTotal"></div>
                     </div>
@@ -211,7 +211,7 @@
 
                 <!-- 第二行左侧：心动人数趋势 -->
                 <div class="card">
-                    <div class="title" id="chartTitleHeart">心动人数趋势</div>
+                    <div class="title" id="chartTitleHeart">心动人数</div>
                     <div class="chart-scroll-box">
                         <div class="chart-wrapper" id="chartHeart"></div>
                     </div>
@@ -219,7 +219,7 @@
 
                 <!-- 第二行右侧：团建电力增幅趋势 -->
                 <div class="card">
-                    <div class="title" id="chartTitlePower">团建电力增幅趋势</div>
+                    <div class="title" id="chartTitlePower">团建电力增幅</div>
                     <div class="chart-scroll-box">
                         <div class="chart-wrapper" id="chartPower"></div>
                     </div>
@@ -387,7 +387,6 @@
             document.getElementById('tableSumStats').innerHTML = 
                 `团建总增幅：${prevDateStr.substring(5)} <span class="val-text">${fmtW(prevTotalDelta)}</span> | ${selectedDate.substring(5)} <span class="val-text">${fmtW(selectedTotalDelta)}</span> ${diffStr}`;
             
-            // 标题去掉日期前缀，原样保留文字
             document.getElementById('tableTitle').innerText = `数据明细 (最近10条)`;
             document.getElementById('chartTitleHeart').innerText = `心动人数`;
             document.getElementById('chartTitlePower').innerText = `团建电力增幅`;
@@ -508,9 +507,37 @@
                 });
             });
 
+            // === 新增：自定义 Tooltip 格式化函数，计算与上一个点的差值 ===
+            const customTooltipFormatter = function(params) {
+                if (!params || !params.length) return '';
+                
+                let result = `<div style="font-size: 13px; font-weight: bold; margin-bottom: 5px;">${params[0].axisValue}</div>`;
+                let dataIndex = params[0].dataIndex;
+                
+                params.forEach(p => {
+                    if (p.value === null || p.value === undefined) return;
+                    
+                    result += `<div style="margin: 3px 0;">${p.marker} ${p.seriesName}：${p.value.toLocaleString()}`;
+                    
+                    // 计算当前时段增幅
+                    if (dataIndex > 0) {
+                        let prevValue = p.data[dataIndex - 1];
+                        if (prevValue !== null && prevValue !== undefined) {
+                            let diff = p.value - prevValue;
+                            if (diff !== 0) {
+                                let diffStr = diff > 0 ? `+${diff.toLocaleString()}` : diff.toLocaleString();
+                                result += ` <span style="color: #FF8C42; font-weight: bold; margin-left: 5px;">(${diffStr})</span>`;
+                            }
+                        }
+                    }
+                    result += `</div>`;
+                });
+                return result;
+            };
+
             chartHeart.hideLoading();
             chartHeart.setOption({
-                tooltip: { trigger: 'axis', confine: true },
+                tooltip: { trigger: 'axis', confine: true, formatter: customTooltipFormatter },
                 legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12, color: '#666' }, type: 'scroll' },
                 grid: { left: '2%', right: '5%', bottom: '10%', top: '18%', containLabel: true },
                 xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 1, fontSize: 11, color: '#888' }, axisLine: { lineStyle: { color: '#f0d6e4' } } },
@@ -520,7 +547,7 @@
 
             chartPower.hideLoading();
             chartPower.setOption({
-                tooltip: { trigger: 'axis', confine: true },
+                tooltip: { trigger: 'axis', confine: true, formatter: customTooltipFormatter },
                 legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12, color: '#666' }, type: 'scroll' },
                 grid: { left: '2%', right: '5%', bottom: '10%', top: '18%', containLabel: true },
                 xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 1, fontSize: 11, color: '#888' }, axisLine: { lineStyle: { color: '#f0d6e4' } } },
@@ -530,7 +557,7 @@
 
             chartTotal.hideLoading();
             chartTotal.setOption({
-                tooltip: { trigger: 'axis', confine: true },
+                tooltip: { trigger: 'axis', confine: true, formatter: customTooltipFormatter },
                 legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12, color: '#666' }, type: 'scroll' },
                 grid: { left: '2%', right: '5%', bottom: '10%', top: '18%', containLabel: true },
                 xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 1, fontSize: 11, color: '#888' }, axisLine: { lineStyle: { color: '#f0d6e4' } } },
