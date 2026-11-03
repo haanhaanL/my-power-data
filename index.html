@@ -506,39 +506,49 @@
                 });
             });
 
-            // 自定义 Tooltip 格式化函数：直接读取 CSV 中已经算好的增幅字段
+            // 自定义 Tooltip 格式化函数
             const makeTooltipFormatter = (deltaKey) => {
                 return function(params) {
                     if (!params || !params.length) return '';
                     
-                    let result = `<div style="font-size: 13px; font-weight: bold; margin-bottom: 5px;">${params[0].axisValue}</div>`;
+                    // 气泡容器：宽度自适应，内部用 flex 布局
+                    let result = `<div style="display: flex; flex-direction: column; min-width: 160px;">`;
                     
+                    // 第一行：时间（左对齐）
+                    result += `<div style="text-align: left; font-size: 13px; font-weight: bold; margin-bottom: 6px; color: #333;">${params[0].axisValue}</div>`;
+                    
+                    // 数据行遍历
                     params.forEach(p => {
                         if (p.value === null || p.value === undefined) return;
                         
-                        result += `<div style="margin: 3px 0;">${p.marker} ${p.seriesName}：${p.value.toLocaleString()}`;
+                        // 通过 flex 布局把“名字”放左边，“数值和增幅”放右边，去除多余的边距
+                        result += `<div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-bottom: 4px; line-height: 1.2;">`;
+                        result += `<div style="text-align: left;">${p.marker} ${p.seriesName}</div>`;
                         
-                        // 根据 seriesName 映射到具体的日期，读取对应的 deltaKey
+                        let valAndDelta = `${p.value.toLocaleString()}`;
+                        
+                        // 获取增幅
                         let dateKey = null;
                         if (p.seriesName === shortDate) dateKey = selectedDate;
                         else if (p.seriesName === prevDateStr.substring(5)) dateKey = prevDateStr;
                         else {
-                            // 历史日期
                             for (const d of allDates) {
                                 if (d.substring(5) === p.seriesName) { dateKey = d; break; }
                             }
                         }
                         
-                        // 读取预设的增幅
                         if (dateKey && dataMap[dateKey] && dataMap[dateKey][p.axisValue] && dataMap[dateKey][p.axisValue][deltaKey] !== undefined) {
                             let delta = dataMap[dateKey][p.axisValue][deltaKey];
                             if (delta !== null) {
                                 let diffStr = delta > 0 ? `+${delta.toLocaleString()}` : delta.toLocaleString();
-                                result += ` <span style="color: #FF8C42; font-weight: bold; margin-left: 5px;">(${diffStr})</span>`;
+                                valAndDelta += ` <span style="color: #FF8C42; font-weight: bold; margin-left: 5px;">(${diffStr})</span>`;
                             }
                         }
+                        
+                        result += `<div style="text-align: right; font-weight: bold;">${valAndDelta}</div>`;
                         result += `</div>`;
                     });
+                    result += `</div>`;
                     return result;
                 };
             };
