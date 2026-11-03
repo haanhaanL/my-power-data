@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>电力数据监控与图表</title>
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <!-- 换用了国内访问更快的 BootCDN -->
+    <script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; }
         .container { max-width: 1400px; margin: 0 auto; }
@@ -22,16 +23,7 @@
     <div class="container">
         <h1 class="header" id="page-title">数据监控</h1>
         
-        <div class="card">
-            <div class="title">心动人数1 对比</div>
-            <div id="chart-heart" class="chart-box"></div>
-        </div>
-
-        <div class="card">
-            <div class="title">团建电力值1 增幅对比</div>
-            <div id="chart-delta" class="chart-box"></div>
-        </div>
-
+        <!-- ======== 表格区域移到了最上方 ======== -->
         <div class="card">
             <div class="title">最近 10 条数据</div>
             <div style="overflow-x:auto;">
@@ -42,6 +34,18 @@
                     <tbody id="table-body"></tbody>
                 </table>
             </div>
+        </div>
+
+        <!-- ======== 图表 1 ======== -->
+        <div class="card">
+            <div class="title">心动人数1 对比</div>
+            <div id="chart-heart" class="chart-box"></div>
+        </div>
+
+        <!-- ======== 图表 2 ======== -->
+        <div class="card">
+            <div class="title">团建电力值1 增幅对比</div>
+            <div id="chart-delta" class="chart-box"></div>
         </div>
     </div>
 
