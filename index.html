@@ -9,6 +9,7 @@
     <!-- PapaParse 解析 CSV 库 -->
     <script src="https://cdn.bootcdn.net/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
+        /* ====== 完全复刻原版 CSS ====== */
         body {
             margin: 0;
             padding: 8px;
@@ -92,7 +93,6 @@
             padding: 6px 10px;
             display: inline-block;
             line-height: 1.4;
-            white-space: pre-wrap;
         }
         
         h3 {
@@ -125,7 +125,16 @@
             top: 0;
         }
         
-        th:first-child, td:first-child { padding-left: 15px; text-align: left; color: #666; position: sticky; left: 0; background: white; z-index: 1;}
+        /* 首列固定 */
+        th:first-child, td:first-child { 
+            padding-left: 15px; 
+            text-align: left; 
+            color: #666; 
+            position: sticky; 
+            left: 0; 
+            background: white; 
+            z-index: 1;
+        }
         th:first-child { background: #fdf2e9; z-index: 2; }
         
         .val-heart { font-weight: bold; color: #333; }
@@ -226,7 +235,7 @@
 
         let globalDataMap = {}; 
 
-        // 用 PapaParse 解析 CSV，避免原版正则切割可能出现的错位问题
+        // 用 PapaParse 解析 CSV
         Papa.parse('power_data.csv?t=' + new Date().getTime(), {
             download: true,
             header: true,
@@ -249,14 +258,14 @@
                     
                     const formattedDate = `${dArr[0]}-${dArr[1].padStart(2,'0')}-${dArr[2].padStart(2,'0')}`;
                     
-                    if (formattedDate < '2026-11-01') return; // 可自行修改起始日期
+                    if (formattedDate < '2026-11-01') return; // 只显示 11 月后的数据
 
                     const timeHour = parseTimeStr(timeStr);
                     datesSet.add(formattedDate);
 
                     if (!globalDataMap[formattedDate]) globalDataMap[formattedDate] = {};
                     
-                    // 注意：这里的 row["增幅"] 有两个，PapaParse 默认会命名为 "增幅" 和 "增幅_1"
+                    // PapaParse 遇到同名列会加 _1, _2
                     globalDataMap[formattedDate][timeHour] = {
                         heart: Number(row["心动人数1"]) || null,
                         heartDelta: row["增幅"] !== '' && row["增幅"] !== undefined ? Number(row["增幅"]) : null,
