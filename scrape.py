@@ -11,8 +11,8 @@ URL_POWER = "https://y.qq.com/tmead/promotion/h5/powering/1793152992875?_hidehd=
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_FILE = os.path.join(BASE_DIR, "power_data.csv")
+HTML_FILE = os.path.join(BASE_DIR, "index.html")
 
-# 北京时间 UTC+8
 BJT = timezone(timedelta(hours=8))
 
 
@@ -26,14 +26,12 @@ def parse_num(text):
 async def scrape_team(page, url):
     if not url: return {"今日心动人数": None, "团建电力值": None}
     
-    # 提速拦截：不加载图片、视频、字体
     await page.route("**/*", lambda route: route.abort() if route.request.resource_type in ["image", "media", "font"] else route.continue_())
     result = {"今日心动人数": None, "团建电力值": None}
 
     try:
         await page.goto(url, wait_until="domcontentloaded", timeout=15000)
         
-        # 等带有“本团今日心动”的元素出现
         heart_locator = page.locator("text=本团今日心动").first
         await heart_locator.wait_for(state="attached", timeout=8000) 
         parent_text = await heart_locator.evaluate("el => el.parentElement.innerText")
@@ -41,7 +39,6 @@ async def scrape_team(page, url):
         if num is not None and num > 0:
             result["今日心动人数"] = num
             
-        # 等带有 千分位/千分位 格式的数字出现
         power_locator = page.locator("text=/\\d{1,3}(?:,\\d{3})+\\s*\\/\\s*\\d{1,3}(?:,\\d{3})+/").first
         await power_locator.wait_for(state="attached", timeout=8000)
         power_text = await power_locator.inner_text()
@@ -156,20 +153,41 @@ def append_csv(row_dict):
     print(f"✅ [{formatted_time}] 写入完成。\n")
 
 
+# ============ 晚间截图逻辑 ============
+async def capture_html_screenshot(page, save_path):
+    """用 Playwright 打开本地生成的 index.html 并截图"""
+    if not os.path.exists(HTML_FILE):
+        print("⚠️ 找不到 index.html，跳过截图")
+        return
+    
+    print(f"🌙 正在打开网页准备截图 -> {os.path.basename(save_path)}")
+    file_url = f"file://{HTML_FILE}"
+    await page.goto(file_url, wait_until="networkidle")
+    
+    # 等待 ECharts 渲染完成
+    await page.wait_for_timeout(3000)
+    
+    # 截图整个页面
+    await page.screenshot(path=save_path, full_page=True)
+    print(f"📸 网页截图已保存：{save_path}")
+
+
 # ============ 主流程 ============
 async def run_once():
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context(
-            user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1")
+            user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1",
+            viewport={"width": 1200, "height": 800}
+        )
 
         page1 = await context.new_page()
         page2 = await context.new_page()
 
-        data = {"时间": datetime.now(BJT).strftime("%Y-%m-%d %H:%M:%S")}
+        now_bjt = datetime.now(BJT)
+        data = {"时间": now_bjt.strftime("%Y-%m-%d %H:%M:%S")}
         curr_dt = datetime.strptime(data["时间"], "%Y-%m-%d %H:%M:%S")
 
-        # 并行抓取
         t1, pwr = await asyncio.gather(
             scrape_team(page1, URL_TEAM1),
             scrape_power(page2),
@@ -178,10 +196,29 @@ async def run_once():
         data["今日心动人数1"], data["团建电力值1"] = t1["今日心动人数"], t1["团建电力值"]
         data["今日心动人数2"], data["团建电力值2"] = None, None
         data["总电力值"] = pwr["总电力值"]
-        await browser.close()
 
-    # 只写入 CSV，不再生成 PNG
-    append_csv(data)
+        # 写入 CSV
+        append_csv(data)
+
+        # ⭐ 测试逻辑：将时间改为 9:30 到 9:40 之间触发
+        if now_bjt.hour == 9 and 30 <= now_bjt.minute <= 40:
+            print("🧪 检测到测试时段 (9:30-9:40)，开始网页截图...")
+            
+            # 图片命名规则保持不变（依然是 chart_年-月-日.png）
+            date_str = now_bjt.strftime("%Y-%m-%d")
+            chart_file_with_date = os.path.join(BASE_DIR, f"chart_{date_str}.png")
+            
+            page3 = await context.new_page()
+            try:
+                await capture_html_screenshot(page3, chart_file_with_date)
+            except Exception as e:
+                print(f"截图失败: {e}")
+            finally:
+                await page3.close()
+        else:
+            print("⏳ 当前不在测试时段 (9:30-9:40)，跳过截图。")
+
+        await browser.close()
 
 
 async def main():
