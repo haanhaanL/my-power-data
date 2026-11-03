@@ -26,7 +26,7 @@
             margin-bottom: 12px;
         }
         
-        /* ==== 核心改动：合并标题与日期选择的容器 ==== */
+        /* 标题与日期选择合并区 */
         .title-selector-wrapper {
             display: inline-flex;
             justify-content: center;
@@ -34,7 +34,7 @@
             position: relative;
             background: #fff;
             border: 1px solid rgba(231,76,60,0.35);
-            border-radius: 20px; /* 胶囊形状 */
+            border-radius: 20px; 
             padding: 8px 20px;
             margin-bottom: 12px;
             box-shadow: 0 2px 8px rgba(231,76,60,0.08);
@@ -45,16 +45,12 @@
             border-color: #e74c3c;
             box-shadow: 0 4px 12px rgba(231,76,60,0.15);
         }
-        
-        /* 显示的动态文字 */
         .title-text {
             color: #e74c3c;
             font-size: 16px;
             font-weight: bold;
-            pointer-events: none; /* 让点击事件穿透给 select */
+            pointer-events: none;
         }
-        
-        /* 小箭头 */
         .dropdown-arrow {
             width: 0; height: 0;
             border-left: 5px solid transparent;
@@ -63,8 +59,6 @@
             margin-left: 8px;
             pointer-events: none;
         }
-        
-        /* 透明的原生下拉框，覆盖整个外壳以接管点击 */
         .date-select-overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -76,11 +70,12 @@
         /* 统计框 */
         .stats-wrap { text-align: center; padding: 0 10px; }
         .stats {
-            font-size: 13px; font-weight: bold; color: #e74c3c;
+            font-size: 13px; font-weight: bold; color: #555; /* 文字改为深灰 */
             background: #fdf7fa; border: 1px solid rgba(231,76,60,0.2);
             border-radius: 12px; padding: 8px 16px; display: inline-block;
             line-height: 1.6; box-shadow: 0 2px 6px rgba(231,76,60,0.04);
         }
+        .stats .val-text { color: #e74c3c; font-weight: bold; } /* 数值改为主题色 */
         .stats .diff-up { color: #e74c3c; font-weight: bold; }
         .stats .diff-down { color: #27ae60; font-weight: bold; }
 
@@ -105,6 +100,8 @@
         /* 图表容器 */
         .chart-scroll-box { overflow-y: hidden; }
         .chart-wrapper { width: 100%; height: 350px; }
+        /* 新增：总电力专属拉高高度 */
+        .chart-wrapper-total { height: 420px; }
 
         /* 表格样式 */
         table {
@@ -153,6 +150,7 @@
         @media (max-width: 1000px) {
             .grid-container { grid-template-columns: 1fr; }
             .chart-wrapper { height: 300px; }
+            .chart-wrapper-total { height: 320px; }
             th, td { padding: 8px 4px; font-size: 11px; }
         }
     </style>
@@ -167,11 +165,10 @@
             <div class="top-header">
                 <div class="update-time" id="updateTime">数据最后更新：加载中...</div>
                 
-                <!-- ==== 合并后的标题与日期选择区 ==== -->
+                <!-- 合并后的标题与日期选择区 -->
                 <div class="title-selector-wrapper">
                     <span class="title-text" id="mergedTitle">团建数据表</span>
                     <div class="dropdown-arrow"></div>
-                    <!-- 覆盖在标题上的透明 select -->
                     <select id="dateSelector" class="date-select-overlay"></select>
                 </div>
                 
@@ -205,11 +202,11 @@
                     </div>
                 </div>
 
-                <!-- 第一行右侧：总电力增幅趋势 -->
+                <!-- 第一行右侧：总电力增幅趋势（拉高） -->
                 <div class="card">
                     <div class="title" id="chartTitleTotal">总电力增幅趋势</div>
                     <div class="chart-scroll-box">
-                        <div class="chart-wrapper" id="chartTotal"></div>
+                        <div class="chart-wrapper chart-wrapper-total" id="chartTotal"></div>
                     </div>
                 </div>
 
@@ -353,7 +350,6 @@
             prevDateObj.setDate(prevDateObj.getDate() - 1);
             const prevDateStr = prevDateObj.toISOString().split('T')[0];
 
-            // 更新合并的主标题文字
             const shortDate = selectedDate.substring(5);
             document.getElementById('mergedTitle').innerText = `团建数据表 · ${shortDate}`;
 
@@ -383,8 +379,9 @@
                 diffStr = `(0)`;
             }
 
+            // 文字用深灰，数值用主题色
             document.getElementById('tableSumStats').innerHTML = 
-                `团建总增幅：${prevDateStr.substring(5)} <span style="color:#333;">${fmtW(prevTotalDelta)}</span> | ${selectedDate.substring(5)} <span style="color:#333;">${fmtW(selectedTotalDelta)}</span> ${diffStr}`;
+                `团建总增幅：${prevDateStr.substring(5)} <span class="val-text">${fmtW(prevTotalDelta)}</span> | ${selectedDate.substring(5)} <span class="val-text">${fmtW(selectedTotalDelta)}</span> ${diffStr}`;
             
             document.getElementById('tableTitle').innerText = `${shortDate} · 数据明细 (最近10条)`;
             document.getElementById('chartTitleHeart').innerText = `${shortDate} · 心动人数`;
