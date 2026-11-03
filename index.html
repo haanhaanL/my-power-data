@@ -505,51 +505,53 @@
                 });
             });
 
-            // === 修改：自定义悬浮框排版 ===
-            const makeTooltipFormatter = (deltaKey) => {
-                return function(params) {
-                    if (!params || !params.length) return '';
+            // === 心动图表专用悬浮框（带增幅） ===
+            const heartTooltipFormatter = function(params) {
+                if (!params || !params.length) return '';
+                let result = `<div style="display: grid; grid-template-columns: max-content max-content max-content; gap: 6px; align-items: center; min-width: 150px;">`;
+                result += `<div style="grid-column: 1 / -1; text-align: left; font-size: 13px; font-weight: bold; margin-bottom: 4px; color: #333;">${params[0].axisValue}</div>`;
+                
+                params.forEach(p => {
+                    if (p.value === null || p.value === undefined) return;
+                    let dateKey = null;
+                    if (p.seriesName === shortDate) dateKey = selectedDate;
+                    else if (p.seriesName === prevDateStr.substring(5)) dateKey = prevDateStr;
+                    else {
+                        for (const d of allDates) { if (d.substring(5) === p.seriesName) { dateKey = d; break; } }
+                    }
                     
-                    // 整体容器，使用 Grid 排版，最小宽度 160px，保证左右有空间但不宽
-                    let result = `<div style="display: grid; grid-template-columns: max-content max-content max-content; gap: 6px; align-items: center; min-width: 150px;">`;
+                    let deltaStr = '';
+                    if (dateKey && dataMap[dateKey] && dataMap[dateKey][p.axisValue] && dataMap[dateKey][p.axisValue].heartDelta !== undefined) {
+                        let delta = dataMap[dateKey][p.axisValue].heartDelta;
+                        if (delta !== null) deltaStr = delta > 0 ? `+${delta.toLocaleString()}` : delta.toLocaleString();
+                    }
                     
-                    // 第一行：时间（占 3 列，左对齐）
-                    result += `<div style="grid-column: 1 / -1; text-align: left; font-size: 13px; font-weight: bold; margin-bottom: 4px; color: #333;">${params[0].axisValue}</div>`;
-                    
-                    params.forEach(p => {
-                        if (p.value === null || p.value === undefined) return;
-                        
-                        // 提取对应增幅
-                        let dateKey = null;
-                        if (p.seriesName === shortDate) dateKey = selectedDate;
-                        else if (p.seriesName === prevDateStr.substring(5)) dateKey = prevDateStr;
-                        else {
-                            for (const d of allDates) {
-                                if (d.substring(5) === p.seriesName) { dateKey = d; break; }
-                            }
-                        }
-                        
-                        let deltaStr = '';
-                        if (dateKey && dataMap[dateKey] && dataMap[dateKey][p.axisValue] && dataMap[dateKey][p.axisValue][deltaKey] !== undefined) {
-                            let delta = dataMap[dateKey][p.axisValue][deltaKey];
-                            if (delta !== null) {
-                                deltaStr = delta > 0 ? `+${delta.toLocaleString()}` : delta.toLocaleString();
-                            }
-                        }
-                        
-                        // 3列内容：图例+日期、具体数值、增幅
-                        result += `<div style="text-align: left;">${p.marker} ${p.seriesName}</div>`;
-                        result += `<div style="text-align: right; font-weight: bold;">${p.value.toLocaleString()}</div>`;
-                        result += `<div style="text-align: right; color: #FF8C42; font-weight: bold; font-size: 12px;">${deltaStr}</div>`;
-                    });
-                    result += `</div>`;
-                    return result;
-                };
+                    result += `<div style="text-align: left;">${p.marker} ${p.seriesName}</div>`;
+                    result += `<div style="text-align: right; font-weight: bold;">${p.value.toLocaleString()}</div>`;
+                    result += `<div style="text-align: right; color: #FF8C42; font-weight: bold; font-size: 12px;">${deltaStr}</div>`;
+                });
+                result += `</div>`;
+                return result;
+            };
+
+            // === 电力图表通用悬浮框（仅数值，因为图表本身已是增幅） ===
+            const defaultTooltipFormatter = function(params) {
+                if (!params || !params.length) return '';
+                let result = `<div style="display: grid; grid-template-columns: max-content max-content; gap: 8px; align-items: center; min-width: 130px;">`;
+                result += `<div style="grid-column: 1 / -1; text-align: left; font-size: 13px; font-weight: bold; margin-bottom: 4px; color: #333;">${params[0].axisValue}</div>`;
+                
+                params.forEach(p => {
+                    if (p.value === null || p.value === undefined) return;
+                    result += `<div style="text-align: left;">${p.marker} ${p.seriesName}</div>`;
+                    result += `<div style="text-align: right; font-weight: bold;">${p.value.toLocaleString()}</div>`;
+                });
+                result += `</div>`;
+                return result;
             };
 
             chartHeart.hideLoading();
             chartHeart.setOption({
-                tooltip: { trigger: 'axis', confine: true, formatter: makeTooltipFormatter('heartDelta') },
+                tooltip: { trigger: 'axis', confine: true, formatter: heartTooltipFormatter },
                 legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12, color: '#666' }, type: 'scroll' },
                 grid: { left: '2%', right: '5%', bottom: '10%', top: '18%', containLabel: true },
                 xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 1, fontSize: 11, color: '#888' }, axisLine: { lineStyle: { color: '#f0d6e4' } } },
@@ -559,7 +561,7 @@
 
             chartPower.hideLoading();
             chartPower.setOption({
-                tooltip: { trigger: 'axis', confine: true, formatter: makeTooltipFormatter('powerDelta') },
+                tooltip: { trigger: 'axis', confine: true, formatter: defaultTooltipFormatter },
                 legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12, color: '#666' }, type: 'scroll' },
                 grid: { left: '2%', right: '5%', bottom: '10%', top: '18%', containLabel: true },
                 xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 1, fontSize: 11, color: '#888' }, axisLine: { lineStyle: { color: '#f0d6e4' } } },
@@ -569,7 +571,7 @@
 
             chartTotal.hideLoading();
             chartTotal.setOption({
-                tooltip: { trigger: 'axis', confine: true, formatter: makeTooltipFormatter('totalDelta') },
+                tooltip: { trigger: 'axis', confine: true, formatter: defaultTooltipFormatter },
                 legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12, color: '#666' }, type: 'scroll' },
                 grid: { left: '2%', right: '5%', bottom: '10%', top: '18%', containLabel: true },
                 xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 1, fontSize: 11, color: '#888' }, axisLine: { lineStyle: { color: '#f0d6e4' } } },
