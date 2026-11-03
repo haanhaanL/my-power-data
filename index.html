@@ -201,7 +201,7 @@
                     </div>
                 </div>
 
-                <!-- 第一行右侧：总电力增幅趋势（拉高） -->
+                <!-- 第一行右侧：总电力增幅趋势 -->
                 <div class="card">
                     <div class="title" id="chartTitleTotal">总电力增幅</div>
                     <div class="chart-scroll-box">
@@ -261,7 +261,6 @@
             return isNaN(num) ? null : num;
         }
 
-        // 统一纵坐标格式化函数（只保留 w）
         function formatW(v) {
             return v >= 10000 ? (v / 10000).toFixed(1) + 'w' : v;
         }
@@ -506,28 +505,21 @@
                 });
             });
 
-            // 自定义 Tooltip 格式化函数
+            // === 修改：自定义悬浮框排版 ===
             const makeTooltipFormatter = (deltaKey) => {
                 return function(params) {
                     if (!params || !params.length) return '';
                     
-                    // 气泡容器：宽度自适应，内部用 flex 布局
-                    let result = `<div style="display: flex; flex-direction: column; min-width: 160px;">`;
+                    // 整体容器，使用 Grid 排版，最小宽度 160px，保证左右有空间但不宽
+                    let result = `<div style="display: grid; grid-template-columns: max-content max-content max-content; gap: 6px; align-items: center; min-width: 150px;">`;
                     
-                    // 第一行：时间（左对齐）
-                    result += `<div style="text-align: left; font-size: 13px; font-weight: bold; margin-bottom: 6px; color: #333;">${params[0].axisValue}</div>`;
+                    // 第一行：时间（占 3 列，左对齐）
+                    result += `<div style="grid-column: 1 / -1; text-align: left; font-size: 13px; font-weight: bold; margin-bottom: 4px; color: #333;">${params[0].axisValue}</div>`;
                     
-                    // 数据行遍历
                     params.forEach(p => {
                         if (p.value === null || p.value === undefined) return;
                         
-                        // 通过 flex 布局把“名字”放左边，“数值和增幅”放右边，去除多余的边距
-                        result += `<div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-bottom: 4px; line-height: 1.2;">`;
-                        result += `<div style="text-align: left;">${p.marker} ${p.seriesName}</div>`;
-                        
-                        let valAndDelta = `${p.value.toLocaleString()}`;
-                        
-                        // 获取增幅
+                        // 提取对应增幅
                         let dateKey = null;
                         if (p.seriesName === shortDate) dateKey = selectedDate;
                         else if (p.seriesName === prevDateStr.substring(5)) dateKey = prevDateStr;
@@ -537,16 +529,18 @@
                             }
                         }
                         
+                        let deltaStr = '';
                         if (dateKey && dataMap[dateKey] && dataMap[dateKey][p.axisValue] && dataMap[dateKey][p.axisValue][deltaKey] !== undefined) {
                             let delta = dataMap[dateKey][p.axisValue][deltaKey];
                             if (delta !== null) {
-                                let diffStr = delta > 0 ? `+${delta.toLocaleString()}` : delta.toLocaleString();
-                                valAndDelta += ` <span style="color: #FF8C42; font-weight: bold; margin-left: 5px;">(${diffStr})</span>`;
+                                deltaStr = delta > 0 ? `+${delta.toLocaleString()}` : delta.toLocaleString();
                             }
                         }
                         
-                        result += `<div style="text-align: right; font-weight: bold;">${valAndDelta}</div>`;
-                        result += `</div>`;
+                        // 3列内容：图例+日期、具体数值、增幅
+                        result += `<div style="text-align: left;">${p.marker} ${p.seriesName}</div>`;
+                        result += `<div style="text-align: right; font-weight: bold;">${p.value.toLocaleString()}</div>`;
+                        result += `<div style="text-align: right; color: #FF8C42; font-weight: bold; font-size: 12px;">${deltaStr}</div>`;
                     });
                     result += `</div>`;
                     return result;
