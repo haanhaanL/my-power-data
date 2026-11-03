@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>数据实时战况</title>
+    <title>团建数据实战</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     <script src="https://cdn.bootcdn.net/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
@@ -162,8 +162,6 @@
             
             <!-- 顶部无背景区域 -->
             <div class="top-header">
-                <div class="update-time" id="updateTime">数据最后更新：加载中...</div>
-                
                 <!-- 合并后的标题与日期选择区 -->
                 <div class="title-selector-wrapper">
                     <span class="title-text" id="mergedTitle">团建数据表</span>
@@ -175,6 +173,9 @@
                 <div class="stats-wrap">
                     <div class="stats" id="tableSumStats"></div>
                 </div>
+                
+                <div class="update-time" id="updateTime">数据最后更新：加载中...</div>
+                
             </div>
 
             <!-- 模块展示区 -->
