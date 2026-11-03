@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>数据实时战况</title>
+    <title>团建数据实况</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     <script src="https://cdn.bootcdn.net/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
@@ -70,13 +70,13 @@
         /* 统计框 */
         .stats-wrap { text-align: center; padding: 0 10px; }
         .stats {
-            font-size: 13px; font-weight: normal; color: #666; /* 文字浅灰 */
+            font-size: 13px; font-weight: normal; color: #555;
             background: #fdf7fa; border: 1px solid rgba(231,76,60,0.2);
             border-radius: 12px; padding: 8px 16px; display: inline-block;
             line-height: 1.6; box-shadow: 0 2px 6px rgba(231,76,60,0.04);
         }
-        .stats .val-text { color: #e74c3c; font-weight: bold; } /* 数值主题色 */
-        .stats .diff-up { color: #FF69B4; font-weight: bold; } /* 差值粉色 */
+        .stats .val-text { color: #e74c3c; font-weight: bold; }
+        .stats .diff-up { color: #FF69B4; font-weight: bold; }
         .stats .diff-down { color: #27ae60; font-weight: bold; }
 
         /* 卡片通用样式 */
@@ -100,7 +100,6 @@
         /* 图表容器 */
         .chart-scroll-box { overflow-y: hidden; }
         .chart-wrapper { width: 100%; height: 350px; }
-        /* 总电力专属拉高高度 */
         .chart-wrapper-total { height: 420px; }
 
         /* 表格样式 */
@@ -294,8 +293,9 @@
                     const timeStr = row["时间"];
                     if (!timeStr) return;
 
-                    latestTimeStr = timeStr;
-
+                    // 直接覆盖为最新读取到的时间
+                    latestTimeStr = timeStr; 
+                    
                     const datePart = timeStr.split(' ')[0].replace(/\//g, '-');
                     const dArr = datePart.split('-');
                     if (dArr.length !== 3) return;
@@ -387,10 +387,11 @@
             document.getElementById('tableSumStats').innerHTML = 
                 `团建总增幅：${prevDateStr.substring(5)} <span class="val-text">${fmtW(prevTotalDelta)}</span> | ${selectedDate.substring(5)} <span class="val-text">${fmtW(selectedTotalDelta)}</span> ${diffStr}`;
             
-            document.getElementById('tableTitle').innerText = `${shortDate} · 数据明细 (最近10条)`;
-            document.getElementById('chartTitleHeart').innerText = `${shortDate} · 心动人数`;
-            document.getElementById('chartTitlePower').innerText = `${shortDate} · 团建电力增幅`;
-            document.getElementById('chartTitleTotal').innerText = `${shortDate} · 总电力增幅`;
+            // 标题去掉日期前缀，原样保留文字
+            document.getElementById('tableTitle').innerText = `数据明细 (最近10条)`;
+            document.getElementById('chartTitleHeart').innerText = `心动人数`;
+            document.getElementById('chartTitlePower').innerText = `团建电力增幅`;
+            document.getElementById('chartTitleTotal').innerText = `总电力增幅`;
 
             let dayDataList = [];
             if (dataMap[selectedDate]) {
@@ -507,7 +508,6 @@
                 });
             });
 
-            // 使用统一的 formatW 格式化 Y 轴，同时 X 轴 interval 设为 1 隔一个显示
             chartHeart.hideLoading();
             chartHeart.setOption({
                 tooltip: { trigger: 'axis', confine: true },
