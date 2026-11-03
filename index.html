@@ -434,24 +434,30 @@
                 });
             }
 
-            // === 其他历史日期的虚线（全灰色） ===
+            // === 其他历史日期的虚线（全灰色，图例也强制灰色） ===
             const allDates = Object.keys(dataMap).sort();
             allDates.forEach(date => {
                 if (date === selectedDate || date === prevDateStr) return;
                 
                 heartSeries.push({
                     name: date.substring(5) + '心动', type: 'line', data: getSeriesData(date, 'heart'),
-                    smooth: false, symbol: 'none', lineStyle: { color: '#b0b0b0', width: 1.5, type: 'dashed' },
+                    smooth: false, symbol: 'none', 
+                    itemStyle: { color: '#b0b0b0' }, // 强制图例显示灰色
+                    lineStyle: { color: '#b0b0b0', width: 1.5, type: 'dashed' },
                     emphasis: { disabled: true }
                 });
                 powerSeries.push({
                     name: date.substring(5) + '团建增幅', type: 'line', data: getSeriesData(date, 'powerDelta'),
-                    smooth: false, symbol: 'none', lineStyle: { color: '#b0b0b0', width: 1.5, type: 'dashed' },
+                    smooth: false, symbol: 'none', 
+                    itemStyle: { color: '#b0b0b0' }, // 强制图例显示灰色
+                    lineStyle: { color: '#b0b0b0', width: 1.5, type: 'dashed' },
                     emphasis: { disabled: true }
                 });
                 totalSeries.push({
                     name: date.substring(5) + '总电增幅', type: 'line', data: getSeriesData(date, 'totalDelta'),
-                    smooth: false, symbol: 'none', lineStyle: { color: '#b0b0b0', width: 1.5, type: 'dashed' },
+                    smooth: false, symbol: 'none', 
+                    itemStyle: { color: '#b0b0b0' }, // 强制图例显示灰色
+                    lineStyle: { color: '#b0b0b0', width: 1.5, type: 'dashed' },
                     emphasis: { disabled: true }
                 });
             });
