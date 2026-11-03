@@ -139,7 +139,7 @@
         
         .val-heart { font-weight: bold; color: #333; }
         .val-power { font-weight: bold; color: #333; }
-        /* 总电增幅颜色改为粉色 */
+        /* 总电数值粉色 */
         .val-total { font-weight: bold; color: #FF69B4; } 
         
         .up { color: #e74c3c; font-weight: bold; }
@@ -392,7 +392,7 @@
             const powerSeries = [];
             const totalSeries = [];
             
-            // === 今天（选中日）的数据 ===
+            // === 今天（选中日）的数据：橙色 ===
             if (dataMap[selectedDate]) {
                 const shortName = selectedDate.substring(5); 
                 
@@ -406,13 +406,14 @@
                     smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#FF8C42' }, lineStyle: { color: '#FF8C42', width: 2.5 }
                 });
 
+                // 总电力今天用橙色
                 totalSeries.push({
                     name: shortName + '总电增幅', type: 'line', data: getSeriesData(selectedDate, 'totalDelta'),
-                    smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#FF69B4' }, lineStyle: { color: '#FF69B4', width: 2.5 }
+                    smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#FF8C42' }, lineStyle: { color: '#FF8C42', width: 2.5 }
                 });
             }
             
-            // === 昨天（对比日）的数据 ===
+            // === 昨天（对比日）的数据：粉色 ===
             if (dataMap[prevDateStr]) {
                 const shortName = prevDateStr.substring(5);
                 
@@ -425,14 +426,15 @@
                     name: shortName + '团建增幅', type: 'line', data: getSeriesData(prevDateStr, 'powerDelta'),
                     smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#FFB3C6' }, lineStyle: { color: '#FFB3C6', width: 2 }
                 });
-                
+
+                // 总电力昨天用粉色
                 totalSeries.push({
                     name: shortName + '总电增幅', type: 'line', data: getSeriesData(prevDateStr, 'totalDelta'),
                     smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#FFB3C6' }, lineStyle: { color: '#FFB3C6', width: 2 }
                 });
             }
 
-            // === 其他历史日期的虚线 ===
+            // === 其他历史日期的虚线（全灰色） ===
             const allDates = Object.keys(dataMap).sort();
             allDates.forEach(date => {
                 if (date === selectedDate || date === prevDateStr) return;
@@ -476,7 +478,7 @@
                 series: powerSeries
             }, true);
 
-            // 渲染总电增幅图（粉色系）
+            // 渲染总电增幅图
             chartTotal.hideLoading();
             chartTotal.setOption({
                 tooltip: { trigger: 'axis', confine: true },
