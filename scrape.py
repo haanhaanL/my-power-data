@@ -2,9 +2,7 @@ import asyncio
 import csv
 import os
 import re
-import threading
-import http.server
-import socketserver
+import json
 from datetime import datetime, timedelta, timezone
 from playwright.async_api import async_playwright
 
@@ -16,7 +14,6 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_FILE = os.path.join(BASE_DIR, "power_data.csv")
 HTML_FILE = os.path.join(BASE_DIR, "index.html")
 
-# 北京时间 UTC+8
 BJT = timezone(timedelta(hours=8))
 
 
@@ -157,39 +154,53 @@ def append_csv(row_dict):
     print(f"✅ [{formatted_time}] 写入完成。\n")
 
 
-# ============ 晚间截图逻辑（含临时 HTTP 服务器） ============
-def start_local_server(directory):
-    class QuietHandler(http.server.SimpleHTTPRequestHandler):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, directory=directory, **kwargs)
-        def log_message(self, format, *args):
-            pass # 屏蔽烦人的访问日志
-            
-    server = socketserver.TCPServer(("", 0), QuietHandler) # 自动分配空闲端口
-    port = server.server_address[1]
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    return server, port
-
-
+# ============ 晚间截图逻辑（数据注入版，绝对成功） ============
 async def capture_html_screenshot(page, save_path):
-    """用 Playwright 打开本地生成的 index.html 并截图"""
     if not os.path.exists(HTML_FILE):
         print("⚠️ 找不到 index.html，跳过截图")
         return
     
-    print(f"🌙 正在启动本地服务器并打开网页准备截图 -> {os.path.basename(save_path)}")
+    print(f"🌙 正在向网页注入数据并截图 -> {os.path.basename(save_path)}")
     
-    # 启动本地 HTTP 服务器解决 file:// 跨域问题
-    server, port = start_local_server(BASE_DIR)
-    local_url = f"http://127.0.0.1:{port}/index.html"
-    
+    # 1. 读取 HTML 内容
+    with open(HTML_FILE, "r", encoding="utf-8") as f:
+        html_content = f.read()
+
+    # 2. 读取 CSV 数据
+    header, rows = load_all_rows()
+    csv_json = json.dumps(rows)
+
+    # 3. 强行把数据塞进 HTML
+    # 注意：这里动态获取表头，防止未来 CSV 列顺序变化
+    inject_script = f"""
+    <script>
+        window.Papa = {{
+            parse: function(url, config) {{
+                const injectedData = {csv_json};
+                const headerNames = {json.dumps(header)};
+                const parsedData = injectedData.map(row => {{
+                    let obj = {{}};
+                    row.forEach((val, idx) => {{ obj[headerNames[idx]] = val; }});
+                    return obj;
+                }});
+                if (config.complete) config.complete({{ data: parsedData }});
+            }}
+        }};
+    </script>
+    """
+    html_content = html_content.replace("</head>", inject_script + "</head>")
+
+    # 4. 保存为临时 HTML，并截图
+    temp_html_path = os.path.join(BASE_DIR, "_temp_screenshot.html")
+    with open(temp_html_path, "w", encoding="utf-8") as f:
+        f.write(html_content)
+
     try:
-        await page.goto(local_url, wait_until="networkidle", timeout=30000)
+        await page.goto(f"file://{temp_html_path}", wait_until="networkidle", timeout=30000)
         
         # 等待 ECharts 的 canvas 渲染完成
         await page.wait_for_selector("canvas", state="visible", timeout=15000)
-        await page.wait_for_timeout(2000) # 多留 2 秒让数据完全填入
+        await page.wait_for_timeout(2000) 
         
         # 截图
         await page.screenshot(path=save_path, full_page=True)
@@ -198,9 +209,9 @@ async def capture_html_screenshot(page, save_path):
     except Exception as e:
         print(f"截图失败: {e}")
     finally:
-        # 截图完成后关闭服务器
-        server.shutdown()
-        server.server_close()
+        # 5. 清理临时文件
+        if os.path.exists(temp_html_path):
+            os.remove(temp_html_path)
 
 
 # ============ 主流程 ============
@@ -231,11 +242,10 @@ async def run_once():
         # 写入 CSV
         append_csv(data)
 
-        # ⭐ 测试逻辑：9:30 到 9:40 之间触发
-        if now_bjt.hour == 9 and 30 <= now_bjt.minute <= 40:
-            print("🧪 检测到测试时段 (9:30-9:40)，开始网页截图...")
+        # ⭐ 测试逻辑：9:40 到 9:50 之间触发
+        if now_bjt.hour == 9 and 40 <= now_bjt.minute <= 50:
+            print("🧪 检测到测试时段 (9:40-9:50)，开始网页截图...")
             
-            # 图片命名保持 chart_年-月-日.png 不变
             date_str = now_bjt.strftime("%Y-%m-%d")
             chart_file_with_date = os.path.join(BASE_DIR, f"chart_{date_str}.png")
             
@@ -247,7 +257,7 @@ async def run_once():
             finally:
                 await page3.close()
         else:
-            print("⏳ 当前不在测试时段 (9:30-9:40)，跳过截图。")
+            print("⏳ 当前不在测试时段 (9:40-9:50)，跳过截图。")
 
         await browser.close()
 
