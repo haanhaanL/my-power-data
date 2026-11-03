@@ -141,13 +141,21 @@ def parse_dt_loose(s):
     return None
 
 
-def find_prev_row(curr_dt, parsed_rows):
-    """寻找严格早于当前时间的最后一条记录"""
+def find_prev_row(curr_dt, parsed_rows, col_idx):
+    """
+    寻找严格早于当前时间，且对应列有有效数据的最近一条记录
+    """
     candidate = None
     for dt, r in parsed_rows:
         if dt >= curr_dt:
             break
-        candidate = (dt, r)
+        # 检查该行的目标列是否有有效数据
+        if len(r) > col_idx and r[col_idx] not in ("", None):
+            try:
+                int(r[col_idx])
+                candidate = (dt, r) # 记录这行，继续往下找，直到遇到当前时间
+            except ValueError:
+                pass
     return candidate
 
 
@@ -177,22 +185,23 @@ def append_csv(row_dict):
             parsed_rows.append((dt, r))
     parsed_rows.sort(key=lambda x: x[0])
 
-    # 回溯上一条
-    prev = find_prev_row(curr_dt, parsed_rows)
-    prev_dt, prev_row = (prev[0], prev[1]) if prev else (None, None)
-
     def calc_delta(curr_val, col_idx):
         if curr_val is None or curr_val == "":
             return ""
-        if prev_row is None or prev_dt is None:
+        
+        # 每一列单独去寻找最近一条有有效数据的记录
+        prev = find_prev_row(curr_dt, parsed_rows, col_idx)
+        if prev is None:
             return ""
+            
+        prev_dt, prev_row = prev
+        
         # 跨天增幅留空
         if prev_dt.date() != curr_dt.date():
             return ""
+            
         try:
             prev_val_str = prev_row[col_idx]
-            if prev_val_str == "" or prev_val_str is None:
-                return ""
             return int(curr_val) - int(prev_val_str)
         except (ValueError, TypeError, IndexError):
             return ""
@@ -220,13 +229,7 @@ def append_csv(row_dict):
             ])
         writer.writerow(row)
 
-    if prev_dt is None:
-        prev_info = "无"
-    elif prev_dt.date() != curr_dt.date():
-        prev_info = f"{prev_dt}（跨天，增幅留空）"
-    else:
-        prev_info = str(prev_dt)
-    print(f"✅ [{formatted_time}] 写入完成。prev_row={prev_info}\n")
+    print(f"✅ [{formatted_time}] 写入完成。\n")
 
 
 # ============ 主流程 ============
