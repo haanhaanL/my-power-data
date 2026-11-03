@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电力数据监控与图表</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .header { text-align: center; color: #D35400; margin-bottom: 20px; }
+        .card { background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 20px; margin-bottom: 20px; }
+        .chart-box { width: 100%; height: 400px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+        th, td { padding: 10px; text-align: center; border-bottom: 1px solid #eee; }
+        th { background-color: #f8f9fa; color: #333; font-weight: bold; }
+        tr:hover { background-color: #f1f1f1; }
+        .title { font-size: 18px; font-weight: bold; color: #333; margin-bottom: 15px; border-left: 4px solid #FF8C42; padding-left: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="header" id="page-title">数据监控</h1>
+        
+        <div class="card">
+            <div class="title">心动人数1 对比</div>
+            <div id="chart-heart" class="chart-box"></div>
+        </div>
+
+        <div class="card">
+            <div class="title">团建电力值1 增幅对比</div>
+            <div id="chart-delta" class="chart-box"></div>
+        </div>
+
+        <div class="card">
+            <div class="title">最近 10 条数据</div>
+            <div style="overflow-x:auto;">
+                <table>
+                    <thead>
+                        <tr id="table-head"></tr>
+                    </thead>
+                    <tbody id="table-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 由 Python 注入的 JSON 数据
+        const chartData = {"target_date": "2026-11-03", "hours": ["00:00", "01:00", "02:00", "03:00", "04:00", "05:00", "06:00", "07:00", "08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00", "23:00", "24:00"], "yest_heart": [null, null, null, null, null, null, null, null, null, null, 7851.0, 8760.0, 9430.0, 10160.0, 10774.0, 11345.0, 12000.0, 12617.0, null, null, null, 16266.0, 17434.0, null, null], "today_heart": [null, 2361.0, null, 2361.0, null, 2361.0, 2361.0, 2361.0, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "yest_delta": [null, null, null, null, null, null, null, null, null, null, null, 2370111.0, 1908821.0, 2042138.0, 2149658.0, 1976371.0, 1974782.0, 2105083.0, null, null, null, null, 3604845.0, null, null], "today_delta": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "header": ["时间", "心动人数1", "增幅", "团建电力值1", "增幅", "心动人数2", "增幅", "团建电力值2", "增幅", "总电力值", "增幅"], "recent_rows": [["2026/11/3 08:47", "", "", "", "", "", "", "", "", "451612865", ""], ["2026/11/3 07:59", "2361", "", "200711961", "", "", "", "", "", "448941421", ""], ["2026/11/3 06:59", "2361", "", "200711961", "", "", "", "", "", "447334367", ""], ["2026/11/3 05:59", "2361", "", "200711961", "", "", "", "", "", "", ""], ["2026/11/3 04:59", "", "", "200711961", "", "", "", "", "", "", ""], ["2026/11/3 03:59", "2361", "", "200711961", "", "", "", "", "", "445621069", ""], ["2026/11/3 02:59", "", "", "200711961", "", "", "", "", "", "444780979", ""], ["2026/11/3 01:59", "2361", "", "200711961", "", "", "", "", "", "", ""], ["2026/11/2 22:59", "17434", "1168", "192299770", "3604845", "", "", "", "", "424086291", "3725991"], ["2026/11/2 21:59", "16266", "", "188694925", "", "", "", "", "", "420360300", ""]]};
+
+        document.getElementById('page-title').innerText = `今天(${chartData.target_date}) 数据监控`;
+
+        // 渲染表格头
+        const thead = document.getElementById('table-head');
+        chartData.header.forEach(h => {
+            const th = document.createElement('th');
+            th.innerText = h;
+            thead.appendChild(th);
+        });
+
+        // 渲染表格体
+        const tbody = document.getElementById('table-body');
+        chartData.recent_rows.forEach(row => {
+            const tr = document.createElement('tr');
+            row.forEach(cell => {
+                const td = document.createElement('td');
+                td.innerText = cell;
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+
+        // 初始化 ECharts
+        var chartHeart = echarts.init(document.getElementById('chart-heart'));
+        var chartDelta = echarts.init(document.getElementById('chart-delta'));
+
+        var optionHeart = {
+            tooltip: { trigger: 'axis' },
+            legend: { data: ['昨天心动人数', '今天心动人数'], top: 0 },
+            grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+            xAxis: { type: 'category', boundaryGap: false, data: chartData.hours },
+            yAxis: { type: 'value' },
+            series: [
+                { name: '昨天心动人数', type: 'line', smooth: true, itemStyle: { color: '#FFB3C6' }, data: chartData.yest_heart },
+                { name: '今天心动人数', type: 'line', smooth: true, itemStyle: { color: '#FF8C42' }, data: chartData.today_heart }
+            ]
+        };
+
+        var optionDelta = {
+            tooltip: { trigger: 'axis' },
+            legend: { data: ['昨天增幅', '今天增幅'], top: 0 },
+            grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+            xAxis: { type: 'category', boundaryGap: false, data: chartData.hours },
+            yAxis: { type: 'value' },
+            series: [
+                { name: '昨天增幅', type: 'line', smooth: true, itemStyle: { color: '#FFB3C6' }, data: chartData.yest_delta },
+                { name: '今天增幅', type: 'line', smooth: true, itemStyle: { color: '#FF8C42' }, data: chartData.today_delta }
+            ]
+        };
+
+        chartHeart.setOption(optionHeart);
+        chartDelta.setOption(optionDelta);
+
+        window.addEventListener('resize', function() {
+            chartHeart.resize();
+            chartDelta.resize();
+        });
+    </script>
+</body>
+</html>
