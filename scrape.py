@@ -2,6 +2,9 @@ import asyncio
 import csv
 import os
 import re
+import threading
+import http.server
+import socketserver
 from datetime import datetime, timedelta, timezone
 from playwright.async_api import async_playwright
 
@@ -13,6 +16,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_FILE = os.path.join(BASE_DIR, "power_data.csv")
 HTML_FILE = os.path.join(BASE_DIR, "index.html")
 
+# 北京时间 UTC+8
 BJT = timezone(timedelta(hours=8))
 
 
@@ -153,23 +157,50 @@ def append_csv(row_dict):
     print(f"✅ [{formatted_time}] 写入完成。\n")
 
 
-# ============ 晚间截图逻辑 ============
+# ============ 晚间截图逻辑（含临时 HTTP 服务器） ============
+def start_local_server(directory):
+    class QuietHandler(http.server.SimpleHTTPRequestHandler):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, directory=directory, **kwargs)
+        def log_message(self, format, *args):
+            pass # 屏蔽烦人的访问日志
+            
+    server = socketserver.TCPServer(("", 0), QuietHandler) # 自动分配空闲端口
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server, port
+
+
 async def capture_html_screenshot(page, save_path):
     """用 Playwright 打开本地生成的 index.html 并截图"""
     if not os.path.exists(HTML_FILE):
         print("⚠️ 找不到 index.html，跳过截图")
         return
     
-    print(f"🌙 正在打开网页准备截图 -> {os.path.basename(save_path)}")
-    file_url = f"file://{HTML_FILE}"
-    await page.goto(file_url, wait_until="networkidle")
+    print(f"🌙 正在启动本地服务器并打开网页准备截图 -> {os.path.basename(save_path)}")
     
-    # 等待 ECharts 渲染完成
-    await page.wait_for_timeout(3000)
+    # 启动本地 HTTP 服务器解决 file:// 跨域问题
+    server, port = start_local_server(BASE_DIR)
+    local_url = f"http://127.0.0.1:{port}/index.html"
     
-    # 截图整个页面
-    await page.screenshot(path=save_path, full_page=True)
-    print(f"📸 网页截图已保存：{save_path}")
+    try:
+        await page.goto(local_url, wait_until="networkidle", timeout=30000)
+        
+        # 等待 ECharts 的 canvas 渲染完成
+        await page.wait_for_selector("canvas", state="visible", timeout=15000)
+        await page.wait_for_timeout(2000) # 多留 2 秒让数据完全填入
+        
+        # 截图
+        await page.screenshot(path=save_path, full_page=True)
+        print(f"📸 网页截图已保存：{save_path}")
+        
+    except Exception as e:
+        print(f"截图失败: {e}")
+    finally:
+        # 截图完成后关闭服务器
+        server.shutdown()
+        server.server_close()
 
 
 # ============ 主流程 ============
@@ -200,11 +231,11 @@ async def run_once():
         # 写入 CSV
         append_csv(data)
 
-        # ⭐ 测试逻辑：将时间改为 9:30 到 9:40 之间触发
+        # ⭐ 测试逻辑：9:30 到 9:40 之间触发
         if now_bjt.hour == 9 and 30 <= now_bjt.minute <= 40:
             print("🧪 检测到测试时段 (9:30-9:40)，开始网页截图...")
             
-            # 图片命名规则保持不变（依然是 chart_年-月-日.png）
+            # 图片命名保持 chart_年-月-日.png 不变
             date_str = now_bjt.strftime("%Y-%m-%d")
             chart_file_with_date = os.path.join(BASE_DIR, f"chart_{date_str}.png")
             
