@@ -293,7 +293,6 @@
                     const timeStr = row["时间"];
                     if (!timeStr) return;
 
-                    // 直接覆盖为最新读取到的时间
                     latestTimeStr = timeStr; 
                     
                     const datePart = timeStr.split(' ')[0].replace(/\//g, '-');
@@ -507,7 +506,7 @@
                 });
             });
 
-            // === 新增：自定义 Tooltip 格式化函数，计算与上一个点的差值 ===
+            // 自定义 Tooltip 格式化函数，计算与上一个点的差值并用橙色显示
             const customTooltipFormatter = function(params) {
                 if (!params || !params.length) return '';
                 
