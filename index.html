@@ -13,13 +13,13 @@
         .container { max-width: 1400px; margin: 0 auto; }
         .header { text-align: center; color: #D35400; margin-bottom: 20px; }
         .card { background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 20px; margin-bottom: 20px; }
-        .chart-box { width: 100%; height: 400px; }
+        .chart-box { width: 100%; height: 450px; } 
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
         th, td { padding: 10px; text-align: center; border-bottom: 1px solid #eee; }
         th { background-color: #f8f9fa; color: #333; font-weight: bold; }
         tr:hover { background-color: #f1f1f1; }
         .title { font-size: 18px; font-weight: bold; color: #333; margin-bottom: 15px; border-left: 4px solid #FF8C42; padding-left: 10px; }
-        #loading { text-align: center; color: #666; font-size: 16px; }
+        #loading { text-align: center; color: #666; font-size: 16px; margin-top: 50px; }
     </style>
 </head>
 <body>
@@ -39,15 +39,15 @@
                 </div>
             </div>
 
-            <!-- 图表 1 -->
+            <!-- 图表 1：心动人数 -->
             <div class="card">
-                <div class="title">心动人数1 对比</div>
+                <div class="title">心动人数1 对比 (折线)</div>
                 <div id="chart-heart" class="chart-box"></div>
             </div>
 
-            <!-- 图表 2 -->
+            <!-- 图表 2：团建电力增幅 -->
             <div class="card">
-                <div class="title">团建电力值1 增幅对比</div>
+                <div class="title">团建电力值1 增幅对比 (折线)</div>
                 <div id="chart-delta" class="chart-box"></div>
             </div>
         </div>
@@ -106,7 +106,7 @@
                 let yestDateStr = `${dateObj.getFullYear()}/${dateObj.getMonth() + 1}/${dateObj.getDate()}`;
 
                 allData.forEach(row => {
-                    let timeStr = row["时间"]; // e.g. "2026/11/2 17:30"
+                    let timeStr = row["时间"];
                     if (!timeStr) return;
                     
                     let datePart = timeStr.split(" ")[0];
@@ -120,10 +120,9 @@
                     let dataPoint = {
                         x: floatHour,
                         heart: parseFloat(row["心动人数1"]) || null,
-                        delta: parseFloat(row["增幅"]) || null
+                        delta: parseFloat(row["增幅"]) || null // 这里取的是团建电力值的增幅
                     };
 
-                    // 匹配今天的日期（因为可能跨月，直接比较字符串前缀）
                     if (datePart === lastDateStr) {
                         todayData.push(dataPoint);
                     } else if (datePart === yestDateStr) {
@@ -131,15 +130,15 @@
                     }
                 });
 
-                // 提取按小时排列的平滑数据（用于图表）
+                // 提取按小时排列的数据
                 let xAxisData = Array.from({length: 25}, (_, i) => i === 24 ? "24:00" : (i < 10 ? "0" + i + ":00" : i + ":00"));
                 
                 function extractData(dataArr, key) {
                     let res = new Array(25).fill(null);
                     dataArr.forEach(dp => {
                         let h = Math.floor(dp.x);
-                        if (h >= 0 && h <= 24) {
-                            res[h] = dp[key]; // 取该小时内的最后一个数据点
+                        if (h >= 0 && h <= 24 && dp[key] !== null) {
+                            res[h] = dp[key]; 
                         }
                     });
                     return res;
@@ -154,31 +153,90 @@
                 var chartHeart = echarts.init(document.getElementById('chart-heart'));
                 var chartDelta = echarts.init(document.getElementById('chart-delta'));
 
+                // 通用的坐标轴和提示框配置
                 var commonOptions = {
-                    tooltip: { trigger: 'axis' },
-                    grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-                    xAxis: { type: 'category', boundaryGap: false, data: xAxisData, axisLine: { lineStyle: { color: '#ccc' } } },
-                    yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed' } } }
+                    tooltip: { 
+                        trigger: 'axis',
+                        axisPointer: { type: 'cross', label: { backgroundColor: '#6a7985' } }
+                    },
+                    grid: { left: '3%', right: '4%', bottom: '5%', containLabel: true },
+                    xAxis: { 
+                        type: 'category', 
+                        boundaryGap: false, 
+                        data: xAxisData, 
+                        axisLine: { lineStyle: { color: '#ccc' } } 
+                    },
+                    yAxis: { 
+                        type: 'value', 
+                        splitLine: { lineStyle: { type: 'dashed', color: '#eee' } } 
+                    }
                 };
 
+                // 图表1：心动人数折线图（已去掉平滑，保留渐变填充）
                 chartHeart.setOption({
                     ...commonOptions,
                     legend: { data: ['昨天心动人数', '今天心动人数'], top: 0 },
                     series: [
-                        { name: '昨天心动人数', type: 'line', smooth: true, itemStyle: { color: '#FFB3C6' }, areaStyle: { color: 'rgba(255,179,198,0.2)' }, data: yestHeart },
-                        { name: '今天心动人数', type: 'line', smooth: true, itemStyle: { color: '#FF8C42' }, areaStyle: { color: 'rgba(255,140,66,0.2)' }, data: todayHeart }
+                        { 
+                            name: '昨天心动人数', 
+                            type: 'line', 
+                            smooth: false, // ⭐ 去掉平滑，变成直角折线
+                            symbol: 'circle', 
+                            symbolSize: 6,
+                            itemStyle: { color: '#FFB3C6' }, 
+                            areaStyle: { 
+                                color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                    { offset: 0, color: 'rgba(255,179,198,0.5)' },
+                                    { offset: 1, color: 'rgba(255,179,198,0.0)' }
+                                ])
+                            }, 
+                            data: yestHeart 
+                        },
+                        { 
+                            name: '今天心动人数', 
+                            type: 'line', 
+                            smooth: false, // ⭐ 去掉平滑，变成直角折线
+                            symbol: 'circle', 
+                            symbolSize: 6,
+                            itemStyle: { color: '#FF8C42' }, 
+                            areaStyle: { 
+                                color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                    { offset: 0, color: 'rgba(255,140,66,0.5)' },
+                                    { offset: 1, color: 'rgba(255,140,66,0.0)' }
+                                ])
+                            }, 
+                            data: todayHeart 
+                        }
                     ]
                 });
 
+                // 图表2：电力值增幅折线图（已去掉平滑）
                 chartDelta.setOption({
                     ...commonOptions,
                     legend: { data: ['昨天增幅', '今天增幅'], top: 0 },
                     series: [
-                        { name: '昨天增幅', type: 'line', smooth: true, itemStyle: { color: '#FFB3C6' }, data: yestDelta },
-                        { name: '今天增幅', type: 'line', smooth: true, itemStyle: { color: '#FF8C42' }, data: todayDelta }
+                        { 
+                            name: '昨天增幅', 
+                            type: 'line', 
+                            smooth: false, // ⭐ 去掉平滑，变成直角折线
+                            symbol: 'circle', 
+                            symbolSize: 6,
+                            itemStyle: { color: '#FFB3C6' }, 
+                            data: yestDelta 
+                        },
+                        { 
+                            name: '今天增幅', 
+                            type: 'line', 
+                            smooth: false, // ⭐ 去掉平滑，变成直角折线
+                            symbol: 'circle', 
+                            symbolSize: 6,
+                            itemStyle: { color: '#FF8C42' }, 
+                            data: todayDelta 
+                        }
                     ]
                 });
 
+                // 窗口大小改变时自适应
                 window.addEventListener('resize', function() {
                     chartHeart.resize();
                     chartDelta.resize();
