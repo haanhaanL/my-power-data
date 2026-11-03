@@ -30,7 +30,7 @@
         <div id="main-content" style="display: none;">
             <!-- 表格区域 -->
             <div class="card">
-                <div class="title">最近 15 条数据</div>
+                <div class="title">最近 10 条数据</div>
                 <div style="overflow-x:auto;">
                     <table>
                         <thead id="table-head"></thead>
@@ -72,7 +72,7 @@
                 let lastDateStr = lastRow["时间"].split(" ")[0]; // e.g. "2026/11/2"
                 document.getElementById('page-title').innerText = `数据监控 (${lastDateStr})`;
 
-                // 2. 渲染表格（倒序取最近 15 条）
+                // 2. 渲染表格（倒序取最近 10 条）
                 let headers = Object.keys(allData[0]);
                 let thead = document.getElementById('table-head');
                 let trHead = document.createElement('tr');
@@ -84,7 +84,7 @@
                 thead.appendChild(trHead);
 
                 let tbody = document.getElementById('table-body');
-                let recentData = allData.slice(-15).reverse();
+                let recentData = allData.slice(-10).reverse(); // ⭐ 这里改成了 10 条
                 recentData.forEach(row => {
                     let tr = document.createElement('tr');
                     headers.forEach(h => {
@@ -172,7 +172,7 @@
                     }
                 };
 
-                // 图表1：心动人数折线图（已去掉平滑，保留渐变填充）
+                // 图表1：心动人数折线图（无平滑，有渐变）
                 chartHeart.setOption({
                     ...commonOptions,
                     legend: { data: ['昨天心动人数', '今天心动人数'], top: 0 },
@@ -180,7 +180,7 @@
                         { 
                             name: '昨天心动人数', 
                             type: 'line', 
-                            smooth: false, // ⭐ 去掉平滑，变成直角折线
+                            smooth: false, // ⭐ 直角折线
                             symbol: 'circle', 
                             symbolSize: 6,
                             itemStyle: { color: '#FFB3C6' }, 
@@ -195,7 +195,7 @@
                         { 
                             name: '今天心动人数', 
                             type: 'line', 
-                            smooth: false, // ⭐ 去掉平滑，变成直角折线
+                            smooth: false, // ⭐ 直角折线
                             symbol: 'circle', 
                             symbolSize: 6,
                             itemStyle: { color: '#FF8C42' }, 
@@ -210,7 +210,7 @@
                     ]
                 });
 
-                // 图表2：电力值增幅折线图（已去掉平滑）
+                // 图表2：电力值增幅折线图（无平滑）
                 chartDelta.setOption({
                     ...commonOptions,
                     legend: { data: ['昨天增幅', '今天增幅'], top: 0 },
@@ -218,7 +218,7 @@
                         { 
                             name: '昨天增幅', 
                             type: 'line', 
-                            smooth: false, // ⭐ 去掉平滑，变成直角折线
+                            smooth: false, // ⭐ 直角折线
                             symbol: 'circle', 
                             symbolSize: 6,
                             itemStyle: { color: '#FFB3C6' }, 
@@ -227,7 +227,7 @@
                         { 
                             name: '今天增幅', 
                             type: 'line', 
-                            smooth: false, // ⭐ 去掉平滑，变成直角折线
+                            smooth: false, // ⭐ 直角折线
                             symbol: 'circle', 
                             symbolSize: 6,
                             itemStyle: { color: '#FF8C42' }, 
