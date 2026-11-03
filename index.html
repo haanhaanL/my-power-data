@@ -70,13 +70,13 @@
         /* 统计框 */
         .stats-wrap { text-align: center; padding: 0 10px; }
         .stats {
-            font-size: 13px; font-weight: bold; color: #555; /* 文字改为深灰 */
+            font-size: 13px; font-weight: bold; color: #888; /* 文字浅灰 */
             background: #fdf7fa; border: 1px solid rgba(231,76,60,0.2);
             border-radius: 12px; padding: 8px 16px; display: inline-block;
             line-height: 1.6; box-shadow: 0 2px 6px rgba(231,76,60,0.04);
         }
-        .stats .val-text { color: #e74c3c; font-weight: bold; } /* 数值改为主题色 */
-        .stats .diff-up { color: #e74c3c; font-weight: bold; }
+        .stats .val-text { color: #e74c3c; font-weight: bold; } /* 数值主题色 */
+        .stats .diff-up { color: #FF69B4; font-weight: bold; } /* 差值粉色 */
         .stats .diff-down { color: #27ae60; font-weight: bold; }
 
         /* 卡片通用样式 */
@@ -100,7 +100,7 @@
         /* 图表容器 */
         .chart-scroll-box { overflow-y: hidden; }
         .chart-wrapper { width: 100%; height: 350px; }
-        /* 新增：总电力专属拉高高度 */
+        /* 总电力专属拉高高度 */
         .chart-wrapper-total { height: 420px; }
 
         /* 表格样式 */
@@ -262,6 +262,11 @@
             return isNaN(num) ? null : num;
         }
 
+        // 统一纵坐标格式化函数（只保留 w）
+        function formatW(v) {
+            return v >= 10000 ? (v / 10000).toFixed(1) + 'w' : v;
+        }
+
         const chartHeart = echarts.init(document.getElementById('chartHeart'));
         const chartPower = echarts.init(document.getElementById('chartPower'));
         const chartTotal = echarts.init(document.getElementById('chartTotal'));
@@ -379,7 +384,6 @@
                 diffStr = `(0)`;
             }
 
-            // 文字用深灰，数值用主题色
             document.getElementById('tableSumStats').innerHTML = 
                 `团建总增幅：${prevDateStr.substring(5)} <span class="val-text">${fmtW(prevTotalDelta)}</span> | ${selectedDate.substring(5)} <span class="val-text">${fmtW(selectedTotalDelta)}</span> ${diffStr}`;
             
@@ -503,13 +507,14 @@
                 });
             });
 
+            // 使用统一的 formatW 格式化 Y 轴，同时 X 轴 interval 设为 1 隔一个显示
             chartHeart.hideLoading();
             chartHeart.setOption({
                 tooltip: { trigger: 'axis', confine: true },
                 legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12, color: '#666' }, type: 'scroll' },
                 grid: { left: '2%', right: '5%', bottom: '10%', top: '18%', containLabel: true },
-                xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 0, fontSize: 11, color: '#888' }, axisLine: { lineStyle: { color: '#f0d6e4' } } },
-                yAxis: { type: 'value', scale: true, axisLabel: { fontSize: 11, color: '#888', formatter: function(v) { return v >= 10000 ? (v / 10000) + 'w' : v; } }, axisLine: { lineStyle: { color: '#f0d6e4' } }, splitLine: { lineStyle: { color: '#faf0f6' } } },
+                xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 1, fontSize: 11, color: '#888' }, axisLine: { lineStyle: { color: '#f0d6e4' } } },
+                yAxis: { type: 'value', scale: true, axisLabel: { fontSize: 11, color: '#888', formatter: formatW }, axisLine: { lineStyle: { color: '#f0d6e4' } }, splitLine: { lineStyle: { color: '#faf0f6' } } },
                 series: heartSeries
             }, true);
 
@@ -518,8 +523,8 @@
                 tooltip: { trigger: 'axis', confine: true },
                 legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12, color: '#666' }, type: 'scroll' },
                 grid: { left: '2%', right: '5%', bottom: '10%', top: '18%', containLabel: true },
-                xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 0, fontSize: 11, color: '#888' }, axisLine: { lineStyle: { color: '#f0d6e4' } } },
-                yAxis: { type: 'value', scale: true, axisLabel: { fontSize: 11, color: '#888', formatter: function(v) { return v >= 1000000 ? (v / 1000000).toFixed(1) + 'm' : v; } }, axisLine: { lineStyle: { color: '#f0d6e4' } }, splitLine: { lineStyle: { color: '#faf0f6' } } },
+                xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 1, fontSize: 11, color: '#888' }, axisLine: { lineStyle: { color: '#f0d6e4' } } },
+                yAxis: { type: 'value', scale: true, axisLabel: { fontSize: 11, color: '#888', formatter: formatW }, axisLine: { lineStyle: { color: '#f0d6e4' } }, splitLine: { lineStyle: { color: '#faf0f6' } } },
                 series: powerSeries
             }, true);
 
@@ -528,8 +533,8 @@
                 tooltip: { trigger: 'axis', confine: true },
                 legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12, color: '#666' }, type: 'scroll' },
                 grid: { left: '2%', right: '5%', bottom: '10%', top: '18%', containLabel: true },
-                xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 0, fontSize: 11, color: '#888' }, axisLine: { lineStyle: { color: '#f0d6e4' } } },
-                yAxis: { type: 'value', scale: true, axisLabel: { fontSize: 11, color: '#888', formatter: function(v) { return v >= 1000000 ? (v / 1000000).toFixed(1) + 'm' : v; } }, axisLine: { lineStyle: { color: '#f0d6e4' } }, splitLine: { lineStyle: { color: '#faf0f6' } } },
+                xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 1, fontSize: 11, color: '#888' }, axisLine: { lineStyle: { color: '#f0d6e4' } } },
+                yAxis: { type: 'value', scale: true, axisLabel: { fontSize: 11, color: '#888', formatter: formatW }, axisLine: { lineStyle: { color: '#f0d6e4' } }, splitLine: { lineStyle: { color: '#faf0f6' } } },
                 series: totalSeries
             }, true);
 
