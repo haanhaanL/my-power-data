@@ -294,7 +294,7 @@
                     const timeStr = row["时间"];
                     if (!timeStr) return;
 
-                    if (timeStr > latestTimeStr) latestTimeStr = timeStr;
+                    latestTimeStr = timeStr;
 
                     const datePart = timeStr.split(' ')[0].replace(/\//g, '-');
                     const dArr = datePart.split('-');
