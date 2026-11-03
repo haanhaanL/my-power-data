@@ -193,7 +193,7 @@
             </div>
 
             <div class="card">
-                <div class="title">电力增幅趋势 (👈左右滑动👉)</div>
+                <div class="title">增幅趋势 (👈左右滑动👉)</div>
                 <div class="chart-scroll-box">
                     <div class="chart-wrapper" id="chartPower" style="height: 300px;"></div>
                 </div>
@@ -225,6 +225,13 @@
             if (val > 0) return `<span class="up">+${val.toLocaleString()}</span>`;
             if (val < 0) return `<span class="down">${val.toLocaleString()}</span>`;
             return '0';
+        }
+
+        // 辅助安全转换数字的函数
+        function getNum(val) {
+            if (val === '' || val === undefined || val === null) return null;
+            const num = Number(val);
+            return isNaN(num) ? null : num;
         }
 
         const chartHeart = echarts.init(document.getElementById('chartHeart'), null, { width: 900, height: 350 });
@@ -264,13 +271,14 @@
 
                     if (!globalDataMap[formattedDate]) globalDataMap[formattedDate] = {};
                     
+                    // === 修复了字段映射错位，并采用了 getNum 安全提取 ===
                     globalDataMap[formattedDate][timeHour] = {
-                        heart: Number(row["心动人数1"]) || null,
-                        heartDelta: row["增幅"] !== '' && row["增幅"] !== undefined ? Number(row["增幅"]) : null,
-                        power: Number(row["团建电力值1"]) || null,
-                        powerDelta: row["增幅_1"] !== '' && row["增幅_1"] !== undefined ? Number(row["增幅_1"]) : null,
-                        totalPower: Number(row["总电力值"]) || null,
-                        totalDelta: row["增幅_2"] !== '' && row["增幅_2"] !== undefined ? Number(row["增幅_2"]) : null
+                        heart: getNum(row["心动人数1"]),
+                        heartDelta: getNum(row["增幅"]),
+                        power: getNum(row["团建电力值1"]),
+                        powerDelta: getNum(row["增幅_1"]),
+                        totalPower: getNum(row["总电力值"]),
+                        totalDelta: getNum(row["增幅_4"]) // 正确对应第 5 个增幅列
                     };
                 });
 
@@ -323,7 +331,7 @@
             
             function fmtW(v) { return (v / 10000).toFixed(1) + 'w'; }
             document.getElementById('tableSumStats').innerHTML = 
-                `${prevDateStr} 总增幅: ${fmtW(prevTotalDelta)}<br>${selectedDate} 总增幅: ${fmtW(selectedTotalDelta)}`;
+                `${prevDateStr} 团建总增幅: ${fmtW(prevTotalDelta)}<br>${selectedDate} 团建总增幅: ${fmtW(selectedTotalDelta)}`;
             document.getElementById('tableTitle').innerText = `${selectedDate} 数据明细 (最近10条)`;
 
             let dayDataList = [];
@@ -374,26 +382,34 @@
             const heartSeries = [];
             const powerSeries = [];
             
-            // 统一把图例名字改成只显示 月-日，比如 "11-03"
             if (dataMap[selectedDate]) {
-                const shortName = selectedDate.substring(5); // 截取 MM-DD
+                const shortName = selectedDate.substring(5); 
                 heartSeries.push({
-                    name: shortName, type: 'line', data: getSeriesData(selectedDate, 'heart'),
+                    name: shortName + '心动', type: 'line', data: getSeriesData(selectedDate, 'heart'),
                     smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#FF8C42' }, lineStyle: { color: '#FF8C42', width: 2.5 }
                 });
+                
+                // 画团建增幅线
                 powerSeries.push({
-                    name: shortName, type: 'line', data: getSeriesData(selectedDate, 'powerDelta'),
+                    name: shortName + '团建增幅', type: 'line', data: getSeriesData(selectedDate, 'powerDelta'),
                     smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#FF8C42' }, lineStyle: { color: '#FF8C42', width: 2.5 }
+                });
+
+                // 画总电增幅线
+                powerSeries.push({
+                    name: shortName + '总电增幅', type: 'line', data: getSeriesData(selectedDate, 'totalDelta'),
+                    smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#2980b9' }, lineStyle: { color: '#2980b9', width: 2.5 }
                 });
             }
+            
             if (dataMap[prevDateStr]) {
                 const shortName = prevDateStr.substring(5);
                 heartSeries.push({
-                    name: shortName, type: 'line', data: getSeriesData(prevDateStr, 'heart'),
+                    name: shortName + '心动', type: 'line', data: getSeriesData(prevDateStr, 'heart'),
                     smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#FFB3C6' }, lineStyle: { color: '#FFB3C6', width: 2 }
                 });
                 powerSeries.push({
-                    name: shortName, type: 'line', data: getSeriesData(prevDateStr, 'powerDelta'),
+                    name: shortName + '团建增幅', type: 'line', data: getSeriesData(prevDateStr, 'powerDelta'),
                     smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#FFB3C6' }, lineStyle: { color: '#FFB3C6', width: 2 }
                 });
             }
@@ -402,12 +418,12 @@
             allDates.forEach(date => {
                 if (date === selectedDate || date === prevDateStr) return;
                 heartSeries.push({
-                    name: date.substring(5), type: 'line', data: getSeriesData(date, 'heart'),
+                    name: date.substring(5) + '心动', type: 'line', data: getSeriesData(date, 'heart'),
                     smooth: false, symbol: 'none', lineStyle: { color: '#b0b0b0', width: 1.5, type: 'dashed' },
                     emphasis: { disabled: true }
                 });
                 powerSeries.push({
-                    name: date.substring(5), type: 'line', data: getSeriesData(date, 'powerDelta'),
+                    name: date.substring(5) + '团建增幅', type: 'line', data: getSeriesData(date, 'powerDelta'),
                     smooth: false, symbol: 'none', lineStyle: { color: '#b0b0b0', width: 1.5, type: 'dashed' },
                     emphasis: { disabled: true }
                 });
