@@ -50,8 +50,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          # 现在只需要提交 CSV 和网页
-          git add power_data.csv index.html
+          # ⭐ 使用通配符匹配所有带日期的截图，同时提交 CSV 和网页
+          git add power_data.csv index.html chart_*.png
           
           if git diff --staged --quiet; then
             echo "没有变更，无需提交"
@@ -60,7 +60,7 @@ jobs:
           
           git commit -m "自动更新数据 $(date -u '+%Y-%m-%d %H:%M')"
 
-          # 快速推送，失败则重试一次
+          # 快速推送，失败则重试
           for i in 1 2 3; do
             if git push origin HEAD:${{ github.ref_name }}; then
               echo "push 成功"
@@ -69,8 +69,8 @@ jobs:
             echo "push 失败，第 $i 次重试..."
             git pull --rebase origin ${{ github.ref_name }}
             if [ $? -ne 0 ]; then
-              git checkout --ours power_data.csv index.html 2>/dev/null || true
-              git add power_data.csv index.html 2>/dev/null || true
+              git checkout --ours power_data.csv index.html chart_*.png 2>/dev/null || true
+              git add power_data.csv index.html chart_*.png 2>/dev/null || true
               git rebase --continue 2>/dev/null || true
             fi
             sleep $((i * 2))
