@@ -4,148 +4,100 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>数据实时战况</title>
-    <!-- ECharts 绘图库 -->
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
-    <!-- PapaParse 解析 CSV 库 -->
     <script src="https://cdn.bootcdn.net/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
-        /* ====== 完全复刻原版 CSS ====== */
         body {
-            margin: 0;
-            padding: 8px;
-            background-color: #f5f5f5;
+            margin: 0; padding: 8px; background-color: #faf7f9;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            overflow-x: hidden;
+            display: flex; flex-direction: column; align-items: center; overflow-x: hidden;
         }
-        .container {
-            width: 100%;
-            max-width: 900px; 
-        }
-        .card {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-            margin-bottom: 12px;
-            padding: 12px 0; 
-            overflow: hidden;
-        }
+        .container { width: 100%; max-width: 900px; }
         
         .header-bar {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin-bottom: 10px;
-            gap: 10px;
+            display: flex; justify-content: center; align-items: center;
+            margin-bottom: 12px; gap: 10px;
+        }
+        .header-bar span {
+            color: #ea3690; font-weight: bold; font-size: 15px;
         }
         .date-select {
-            font-size: 16px;
-            font-weight: bold;
-            color: #D35400;
-            background-color: #FDF2E9;
-            border: 1px solid #FFB27A;
-            border-radius: 8px;
-            padding: 8px 12px;
-            outline: none;
-            appearance: none;
+            font-size: 15px; font-weight: bold; color: #ea3690;
+            background: white; border: 1px solid rgba(234,54,144,0.35);
+            border-radius: 20px; padding: 6px 16px;
+            outline: none; appearance: none;
+            box-shadow: 0 2px 8px rgba(234,54,144,0.08);
         }
+
+        .card {
+            background: white; border-radius: 12px; box-shadow: 0 4px 12px rgba(234,54,144,0.08);
+            padding: 12px 0; margin-bottom: 12px; overflow: hidden; border: 1px solid rgba(234,54,144,0.10);
+        }
+        
+        .stats-wrap { text-align: center; padding: 0 10px; }
+        .stats {
+            font-size: 12px; font-weight: bold; color: #ea3690;
+            background: #fdf7fa; border: 1px solid rgba(234,54,144,0.2);
+            border-radius: 20px; padding: 8px 16px; display: inline-block;
+            line-height: 1.5;
+        }
+
+        .title {
+            text-align: center; color: #ea3690; font-size: 15px; font-weight: bold; margin: 5px 0 10px 0;
+        }
+        h3 { text-align: center; color: #ea3690; margin: 0 0 10px 0; font-size: 15px; }
 
         /* 表格滑动框 */
         .table-scroll-box {
-            width: 100%;
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
+            width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch;
         }
         .table-scroll-box::-webkit-scrollbar { display: none; }
 
         /* 图表滑动框 */
         .chart-scroll-box {
-            width: 100%;
-            overflow-x: auto;
-            overflow-y: hidden;
-            -webkit-overflow-scrolling: touch;
+            width: 100%; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch;
         }
         .chart-scroll-box::-webkit-scrollbar { display: none; }
+        .chart-wrapper { width: 900px; height: 350px; }
 
-        .chart-wrapper {
-            width: 900px; 
-            height: 350px;
-        }
-
-        .title {
-            text-align: center;
-            color: #D35400;
-            font-size: 15px;
-            font-weight: bold;
-            margin: 5px 0 10px 0;
-        }
-        .stats-wrap { text-align: center; margin-bottom: 10px; padding: 0 10px; }
-        .stats {
-            text-align: center;
-            font-size: 12px; 
-            font-weight: bold;
-            color: #555;
-            background: #FDF2E9;
-            border: 1px solid #FFB27A;
-            border-radius: 20px;
-            padding: 6px 10px;
-            display: inline-block;
-            line-height: 1.4;
-        }
-        
-        h3 {
-            text-align: center;
-            color: #333;
-            margin: 0 0 10px 0;
-            font-size: 15px;
-        }
-
-        /* 表格样式 */
+        /* 表格样式（复刻新版风格） */
         table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 13px;
-            min-width: 850px; 
+            width: 100%; border-collapse: separate; border-spacing: 0;
+            font-size: 12px; min-width: 850px;
         }
         th, td {
-            padding: 10px 8px;
-            text-align: right;
-            border-bottom: 1px solid #eee;
-            white-space: nowrap;
+            padding: 10px 6px; text-align: center; border-bottom: 1px solid #f3e6ee;
+            white-space: nowrap; line-height: 1.5;
         }
         th {
-            background-color: #fdf2e9;
-            color: #d35400;
-            font-weight: bold;
-            text-align: center;
-            font-size: 12px;
-            position: sticky;
-            top: 0;
+            background-color: #ea3690; color: #ffffff; font-weight: bold;
+            font-size: 12px; position: sticky; top: 0; z-index: 2;
+            border: 1px solid rgba(255, 255, 255, 0.3); box-shadow: 0 1px 0 #f3e6ee;
         }
         
         /* 首列固定 */
         th:first-child, td:first-child { 
-            padding-left: 15px; 
-            text-align: left; 
-            color: #666; 
-            position: sticky; 
-            left: 0; 
-            background: white; 
-            z-index: 1;
+            text-align: center; color: #ea3690; position: sticky; left: 0; z-index: 1;
+            background-color: #ffffff; font-weight: bold;
         }
-        th:first-child { background: #fdf2e9; z-index: 2; }
+        th:first-child { background-color: #ea3690; color: #ffffff; z-index: 20; }
+        tbody tr:nth-child(even) { background-color: #ea36900a; }
+        tbody tr:nth-child(even) td:first-child { background-color: #fdf7fa; }
         
         .val-heart { font-weight: bold; color: #333; }
         .val-power { font-weight: bold; color: #333; }
-        /* 总电数值粉色 */
-        .val-total { font-weight: bold; color: #FF69B4; } 
+        .val-total { font-weight: bold; color: #333; } 
         
         .up { color: #e74c3c; font-weight: bold; }
         .down { color: #27ae60; font-weight: bold; }
         
-        #loading { text-align: center; color: #666; font-size: 16px; margin-top: 50px; }
+        #loading { text-align: center; color: #ea3690; font-size: 16px; margin-top: 50px; }
+
+        /* 适配手机端 */
+        @media (max-width: 900px) {
+            .chart-wrapper { width: 900px; height: 300px; }
+            th, td { padding: 8px 4px; font-size: 11px; }
+        }
     </style>
 </head>
 <body>
@@ -154,7 +106,7 @@
         
         <div id="main-content" style="display: none;">
             <!-- 日期选择区 -->
-            <div class="card" style="padding: 10px 0; text-align: center;">
+            <div class="card" style="padding: 12px 0; text-align: center;">
                 <div class="header-bar">
                     <span>选择查看日期：</span>
                     <select id="dateSelector" class="date-select"></select>
@@ -185,7 +137,7 @@
                 </div>
             </div>
 
-            <!-- 图表区域：拆分为三个卡片 -->
+            <!-- 图表区域 -->
             <div class="card">
                 <div class="title">心动人数趋势 (👈左右滑动👉)</div>
                 <div class="chart-scroll-box">
@@ -201,7 +153,7 @@
             </div>
 
             <div class="card">
-                <div class="title" style="color: #FF69B4;">总电力增幅趋势 (👈左右滑动👉)</div>
+                <div class="title">总电力增幅趋势 (👈左右滑动👉)</div>
                 <div class="chart-scroll-box">
                     <div class="chart-wrapper" id="chartTotal" style="height: 300px;"></div>
                 </div>
@@ -273,7 +225,6 @@
                     if (dArr.length !== 3) return;
                     
                     const formattedDate = `${dArr[0]}-${dArr[1].padStart(2,'0')}-${dArr[2].padStart(2,'0')}`;
-                    
                     if (formattedDate < '2026-11-01') return; 
 
                     const timeHour = parseTimeStr(timeStr);
@@ -340,7 +291,7 @@
             
             function fmtW(v) { return (v / 10000).toFixed(1) + 'w'; }
             document.getElementById('tableSumStats').innerHTML = 
-                `${prevDateStr} 团建总增幅: ${fmtW(prevTotalDelta)}<br>${selectedDate} 团建总增幅: ${fmtW(selectedTotalDelta)}`;
+                `${prevDateStr} 团建总增幅: <span style="color:#e74c3c;">${fmtW(prevTotalDelta)}</span><br>${selectedDate} 团建总增幅: <span style="color:#e74c3c;">${fmtW(selectedTotalDelta)}</span>`;
             document.getElementById('tableTitle').innerText = `${selectedDate} 数据明细 (最近10条)`;
 
             let dayDataList = [];
@@ -356,7 +307,7 @@
             tbody.innerHTML = '';
 
             if (latestRows.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">暂无数据</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#999;">暂无数据</td></tr>';
             } else {
                 latestRows.forEach(row => {
                     const tr = document.createElement('tr');
@@ -367,7 +318,7 @@
                         <td class="val-power">${formatNum(row.power)}</td>
                         <td>${formatDelta(row.powerDelta)}</td>
                         <td class="val-total">${formatNum(row.totalPower)}</td>
-                        <td style="color: #FF69B4; font-weight: bold;">${formatDelta(row.totalDelta)}</td>
+                        <td>${formatDelta(row.totalDelta)}</td>
                     `;
                     tbody.appendChild(tr);
                 });
@@ -406,7 +357,6 @@
                     smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#FF8C42' }, lineStyle: { color: '#FF8C42', width: 2.5 }
                 });
 
-                // 总电力今天用橙色
                 totalSeries.push({
                     name: shortName + '总电增幅', type: 'line', data: getSeriesData(selectedDate, 'totalDelta'),
                     smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#FF8C42' }, lineStyle: { color: '#FF8C42', width: 2.5 }
@@ -427,14 +377,13 @@
                     smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#FFB3C6' }, lineStyle: { color: '#FFB3C6', width: 2 }
                 });
 
-                // 总电力昨天用粉色
                 totalSeries.push({
                     name: shortName + '总电增幅', type: 'line', data: getSeriesData(prevDateStr, 'totalDelta'),
                     smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#FFB3C6' }, lineStyle: { color: '#FFB3C6', width: 2 }
                 });
             }
 
-            // === 其他历史日期的虚线（全灰色，图例也强制灰色） ===
+            // === 其他历史日期的虚线（全灰色，图例也是灰） ===
             const allDates = Object.keys(dataMap).sort();
             allDates.forEach(date => {
                 if (date === selectedDate || date === prevDateStr) return;
@@ -442,21 +391,21 @@
                 heartSeries.push({
                     name: date.substring(5) + '心动', type: 'line', data: getSeriesData(date, 'heart'),
                     smooth: false, symbol: 'none', 
-                    itemStyle: { color: '#b0b0b0' }, // 强制图例显示灰色
+                    itemStyle: { color: '#b0b0b0' }, 
                     lineStyle: { color: '#b0b0b0', width: 1.5, type: 'dashed' },
                     emphasis: { disabled: true }
                 });
                 powerSeries.push({
                     name: date.substring(5) + '团建增幅', type: 'line', data: getSeriesData(date, 'powerDelta'),
                     smooth: false, symbol: 'none', 
-                    itemStyle: { color: '#b0b0b0' }, // 强制图例显示灰色
+                    itemStyle: { color: '#b0b0b0' }, 
                     lineStyle: { color: '#b0b0b0', width: 1.5, type: 'dashed' },
                     emphasis: { disabled: true }
                 });
                 totalSeries.push({
                     name: date.substring(5) + '总电增幅', type: 'line', data: getSeriesData(date, 'totalDelta'),
                     smooth: false, symbol: 'none', 
-                    itemStyle: { color: '#b0b0b0' }, // 强制图例显示灰色
+                    itemStyle: { color: '#b0b0b0' }, 
                     lineStyle: { color: '#b0b0b0', width: 1.5, type: 'dashed' },
                     emphasis: { disabled: true }
                 });
@@ -466,10 +415,10 @@
             chartHeart.hideLoading();
             chartHeart.setOption({
                 tooltip: { trigger: 'axis', confine: true },
-                legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12 }, type: 'scroll' },
-                grid: { left: '2%', right: '5%', bottom: '10%', top: '15%', containLabel: true },
-                xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 0, fontSize: 11 } },
-                yAxis: { type: 'value', name: '人数', scale: true, axisLabel: { fontSize: 11, formatter: function(v) { return v >= 10000 ? (v / 10000) + 'w' : v; } } },
+                legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12, color: '#666' }, type: 'scroll' },
+                grid: { left: '2%', right: '5%', bottom: '10%', top: '18%', containLabel: true },
+                xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 0, fontSize: 11, color: '#888' }, axisLine: { lineStyle: { color: '#f0d6e4' } } },
+                yAxis: { type: 'value', name: '人数', scale: true, axisLabel: { fontSize: 11, color: '#888', formatter: function(v) { return v >= 10000 ? (v / 10000) + 'w' : v; } }, axisLine: { lineStyle: { color: '#f0d6e4' } }, splitLine: { lineStyle: { color: '#faf0f6' } } },
                 series: heartSeries
             }, true);
 
@@ -477,10 +426,10 @@
             chartPower.hideLoading();
             chartPower.setOption({
                 tooltip: { trigger: 'axis', confine: true },
-                legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12 }, type: 'scroll' },
-                grid: { left: '2%', right: '5%', bottom: '10%', top: '15%', containLabel: true },
-                xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 0, fontSize: 11 } },
-                yAxis: { type: 'value', name: '增幅', scale: true, axisLabel: { fontSize: 11, formatter: function(v) { return v >= 1000000 ? (v / 1000000).toFixed(1) + 'm' : v; } } },
+                legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12, color: '#666' }, type: 'scroll' },
+                grid: { left: '2%', right: '5%', bottom: '10%', top: '18%', containLabel: true },
+                xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 0, fontSize: 11, color: '#888' }, axisLine: { lineStyle: { color: '#f0d6e4' } } },
+                yAxis: { type: 'value', name: '增幅', scale: true, axisLabel: { fontSize: 11, color: '#888', formatter: function(v) { return v >= 1000000 ? (v / 1000000).toFixed(1) + 'm' : v; } }, axisLine: { lineStyle: { color: '#f0d6e4' } }, splitLine: { lineStyle: { color: '#faf0f6' } } },
                 series: powerSeries
             }, true);
 
@@ -488,10 +437,10 @@
             chartTotal.hideLoading();
             chartTotal.setOption({
                 tooltip: { trigger: 'axis', confine: true },
-                legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12 }, type: 'scroll' },
-                grid: { left: '2%', right: '5%', bottom: '10%', top: '15%', containLabel: true },
-                xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 0, fontSize: 11 } },
-                yAxis: { type: 'value', name: '增幅', scale: true, axisLabel: { fontSize: 11, formatter: function(v) { return v >= 1000000 ? (v / 1000000).toFixed(1) + 'm' : v; } } },
+                legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12, color: '#666' }, type: 'scroll' },
+                grid: { left: '2%', right: '5%', bottom: '10%', top: '18%', containLabel: true },
+                xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 0, fontSize: 11, color: '#888' }, axisLine: { lineStyle: { color: '#f0d6e4' } } },
+                yAxis: { type: 'value', name: '增幅', scale: true, axisLabel: { fontSize: 11, color: '#888', formatter: function(v) { return v >= 1000000 ? (v / 1000000).toFixed(1) + 'm' : v; } }, axisLine: { lineStyle: { color: '#f0d6e4' } }, splitLine: { lineStyle: { color: '#faf0f6' } } },
                 series: totalSeries
             }, true);
         }
