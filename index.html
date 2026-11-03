@@ -89,7 +89,7 @@
             color: #555;
             background: #FDF2E9;
             border: 1px solid #FFB27A;
-            border-radius: 8px;
+            border-radius: 20px;
             padding: 6px 10px;
             display: inline-block;
             line-height: 1.4;
@@ -228,8 +228,10 @@
             return '0';
         }
 
-        const chartHeart = echarts.init(document.getElementById('chartHeart'));
-        const chartPower = echarts.init(document.getElementById('chartPower'));
+        // ⭐ 修复核心：初始化时强制指定宽度，避免 ECharts 错误计算被挤压
+        const chartHeart = echarts.init(document.getElementById('chartHeart'), null, { width: 900, height: 350 });
+        const chartPower = echarts.init(document.getElementById('chartPower'), null, { width: 900, height: 300 });
+        
         chartHeart.showLoading();
         chartPower.showLoading();
 
@@ -258,14 +260,13 @@
                     
                     const formattedDate = `${dArr[0]}-${dArr[1].padStart(2,'0')}-${dArr[2].padStart(2,'0')}`;
                     
-                    if (formattedDate < '2026-11-01') return; // 只显示 11 月后的数据
+                    if (formattedDate < '2026-11-01') return; 
 
                     const timeHour = parseTimeStr(timeStr);
                     datesSet.add(formattedDate);
 
                     if (!globalDataMap[formattedDate]) globalDataMap[formattedDate] = {};
                     
-                    // PapaParse 遇到同名列会加 _1, _2
                     globalDataMap[formattedDate][timeHour] = {
                         heart: Number(row["心动人数1"]) || null,
                         heartDelta: row["增幅"] !== '' && row["增幅"] !== undefined ? Number(row["增幅"]) : null,
@@ -416,7 +417,8 @@
             chartHeart.setOption({
                 tooltip: { trigger: 'axis', confine: true },
                 legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12 }, type: 'scroll' },
-                grid: { left: '0%', right: '0%', bottom: '10%', top: '15%', containLabel: true },
+                // ⭐ 修复核心：将 grid 的 right 留出空间，防止最右侧的 24:00 数据被截断
+                grid: { left: '2%', right: '5%', bottom: '10%', top: '15%', containLabel: true },
                 xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 0, fontSize: 11 } },
                 yAxis: { type: 'value', name: '人数', scale: true, axisLabel: { fontSize: 11, formatter: function(v) { return v >= 10000 ? (v / 10000) + 'w' : v; } } },
                 series: heartSeries
@@ -426,16 +428,22 @@
             chartPower.setOption({
                 tooltip: { trigger: 'axis', confine: true },
                 legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12 }, type: 'scroll' },
-                grid: { left: '0%', right: '0%', bottom: '10%', top: '15%', containLabel: true },
+                // ⭐ 修复核心：同上
+                grid: { left: '2%', right: '5%', bottom: '10%', top: '15%', containLabel: true },
                 xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 0, fontSize: 11 } },
                 yAxis: { type: 'value', name: '增幅', scale: true, axisLabel: { fontSize: 11, formatter: function(v) { return v >= 1000000 ? (v / 1000000).toFixed(1) + 'm' : v; } } },
                 series: powerSeries
             }, true);
         }
 
+        // ⭐ 修复核心：使用防抖处理窗口大小变化，避免卡顿和渲染不全
+        let resizeTimer;
         window.addEventListener('resize', function() {
-            chartHeart.resize();
-            chartPower.resize();
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(function() {
+                chartHeart.resize({ width: 900, height: 350 });
+                chartPower.resize({ width: 900, height: 300 });
+            }, 200);
         });
     </script>
 </body>
