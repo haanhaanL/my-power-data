@@ -2,7 +2,6 @@ import asyncio
 import csv
 import os
 import re
-import json
 from datetime import datetime, timedelta, timezone
 from playwright.async_api import async_playwright
 
@@ -24,7 +23,6 @@ URL_POWER = "https://y.qq.com/tmead/promotion/h5/powering/1793152992875?_hidehd=
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_FILE = os.path.join(BASE_DIR, "power_data.csv")
 CHART_FILE = os.path.join(BASE_DIR, "chart.png")
-HTML_FILE = os.path.join(BASE_DIR, "index.html")
 
 BJT = timezone(timedelta(hours=8))
 
@@ -39,11 +37,13 @@ def parse_num(text):
 async def scrape_team(page, url):
     if not url: return {"今日心动人数": None, "团建电力值": None}
     
+    # 提速拦截：不加载图片、视频、字体，大幅减少等待时间
     await page.route("**/*", lambda route: route.abort() if route.request.resource_type in ["image", "media", "font"] else route.continue_())
     await page.goto(url, wait_until="domcontentloaded", timeout=90000)
 
     result = {"今日心动人数": None, "团建电力值": None}
 
+    # 防漏轮询：每秒查一次，抓全了就立刻结束
     for _ in range(20):
         try:
             heart_ele = page.locator("text=本团今日心动").first
@@ -166,7 +166,7 @@ def append_csv(row_dict):
     print(f"✅ [{formatted_time}] 写入完成。\n")
 
 
-# ============ 图表生成（保留原版） ============
+# ============ 图表生成（保留原版样式） ============
 def to_float(v):
     try: return float(v) if v not in (None, "") else None
     except: return None
@@ -372,198 +372,6 @@ def generate_chart(target_date, save_path, is_final=False):
     print(f"图表已生成：{save_path}")
 
 
-# ============ HTML 网页生成（已合并模板，表格在上方） ============
-def generate_html(target_date, save_path):
-    header, rows = load_all_rows()
-    if not rows: return
-
-    recent_rows = [r for r in rows[-10:] if len(r) > 0]
-
-    data_map = {}
-    for r in rows:
-        if len(r) < 10: continue
-        dt = parse_dt_loose(r[0])
-        if dt is None: continue
-        if dt.minute > 10 and dt.minute < 55: continue
-
-        target_date_str = dt.strftime('%Y-%m-%d')
-        rec = {"hour": dt.hour, "heart": to_float(r[1]), "delta": to_float(r[4])}
-        
-        if dt.hour == 0:
-            data_map[f"{target_date_str}_0"] = rec
-            continue
-        if dt.hour == 23 and dt.minute >= 55:
-            next_day_str = (dt + timedelta(days=1)).strftime('%Y-%m-%d')
-            data_map[f"{next_day_str}_0_2359"] = rec
-            data_map.setdefault(f"{target_date_str}_23", rec)
-            continue
-        key = f"{target_date_str}_{dt.hour}"
-        data_map.setdefault(key, rec)
-
-    today_str = target_date.strftime("%Y-%m-%d")
-    yest_date = target_date - timedelta(days=1)
-    yest_str = yest_date.strftime("%Y-%m-%d")
-    next_str = (target_date + timedelta(days=1)).strftime("%Y-%m-%d")
-
-    hours = list(range(25))
-    yest_heart, today_heart, yest_delta, today_delta = [], [], [], []
-    
-    for h in hours:
-        if h == 0:
-            y_data = data_map.get(f"{yest_str}_0"); t_data = data_map.get(f"{today_str}_0")
-        elif h == 24:
-            y_data = data_map.get(f"{today_str}_0_2359") or data_map.get(f"{today_str}_0")
-            t_data = data_map.get(f"{next_str}_0_2359") or data_map.get(f"{next_str}_0")
-        else:
-            y_data = data_map.get(f"{yest_str}_{h}"); t_data = data_map.get(f"{today_str}_{h}")
-            
-        yest_heart.append(y_data["heart"] if y_data else None)
-        today_heart.append(t_data["heart"] if t_data else None)
-        yest_delta.append(y_data["delta"] if y_data else None)
-        today_delta.append(t_data["delta"] if t_data else None)
-
-    js_yest_heart = json.dumps(yest_heart)
-    js_today_heart = json.dumps(today_heart)
-    js_yest_delta = json.dumps(yest_delta)
-    js_today_delta = json.dumps(today_delta)
-    js_hours = json.dumps([f"{h:02d}:00" for h in hours])
-
-    table_html = ""
-    for r in reversed(recent_rows):
-        table_html += "<tr>"
-        for item in r:
-            table_html += f"<td>{item}</td>"
-        table_html += "</tr>"
-
-    html_content = f"""
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>电力数据监控与图表</title>
-    <script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
-    <style>
-        body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; }}
-        .container {{ max-width: 1400px; margin: 0 auto; }}
-        .header {{ text-align: center; color: #D35400; margin-bottom: 20px; }}
-        .card {{ background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 20px; margin-bottom: 20px; }}
-        .chart-box {{ width: 100%; height: 400px; }}
-        table {{ width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }}
-        th, td {{ padding: 10px; text-align: center; border-bottom: 1px solid #eee; }}
-        th {{ background-color: #f8f9fa; color: #333; font-weight: bold; }}
-        tr:hover {{ background-color: #f1f1f1; }}
-        .title {{ font-size: 18px; font-weight: bold; color: #333; margin-bottom: 15px; border-left: 4px solid #FF8C42; padding-left: 10px; }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1 class="header">今天({target_date}) 数据监控</h1>
-        
-        <!-- 表格区域（在最上方） -->
-        <div class="card">
-            <div class="title">最近 10 条数据</div>
-            <div style="overflow-x:auto;">
-                <table>
-                    <thead>
-                        <tr>
-                            {"".join(f"<th>{h}</th>" for h in header)}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {table_html}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- 图表 1 -->
-        <div class="card">
-            <div class="title">心动人数1 对比</div>
-            <div id="chart-heart" class="chart-box"></div>
-        </div>
-
-        <!-- 图表 2 -->
-        <div class="card">
-            <div class="title">团建电力值1 增幅对比</div>
-            <div id="chart-delta" class="chart-box"></div>
-        </div>
-    </div>
-
-    <script>
-        var chartHeart = echarts.init(document.getElementById('chart-heart'));
-        var chartDelta = echarts.init(document.getElementById('chart-delta'));
-
-        var hours = {js_hours};
-        var yestHeart = {js_yest_heart};
-        var todayHeart = {js_today_heart};
-        var yestDelta = {js_yest_delta};
-        var todayDelta = {js_today_delta};
-
-        var optionHeart = {{
-            tooltip: {{ trigger: 'axis' }},
-            legend: {{ data: ['昨天心动人数', '今天心动人数'], top: 0 }},
-            grid: {{ left: '3%', right: '4%', bottom: '3%', containLabel: true }},
-            xAxis: {{ type: 'category', boundaryGap: false, data: hours }},
-            yAxis: {{ type: 'value' }},
-            series: [
-                {{
-                    name: '昨天心动人数',
-                    type: 'line',
-                    smooth: true,
-                    itemStyle: {{ color: '#FFB3C6' }},
-                    data: yestHeart
-                }},
-                {{
-                    name: '今天心动人数',
-                    type: 'line',
-                    smooth: true,
-                    itemStyle: {{ color: '#FF8C42' }},
-                    data: todayHeart
-                }}
-            ]
-        }};
-
-        var optionDelta = {{
-            tooltip: {{ trigger: 'axis' }},
-            legend: {{ data: ['昨天增幅', '今天增幅'], top: 0 }},
-            grid: {{ left: '3%', right: '4%', bottom: '3%', containLabel: true }},
-            xAxis: {{ type: 'category', boundaryGap: false, data: hours }},
-            yAxis: {{ type: 'value' }},
-            series: [
-                {{
-                    name: '昨天增幅',
-                    type: 'line',
-                    smooth: true,
-                    itemStyle: {{ color: '#FFB3C6' }},
-                    data: yestDelta
-                }},
-                {{
-                    name: '今天增幅',
-                    type: 'line',
-                    smooth: true,
-                    itemStyle: {{ color: '#FF8C42' }},
-                    data: todayDelta
-                }}
-            ]
-        }};
-
-        chartHeart.setOption(optionHeart);
-        chartDelta.setOption(optionDelta);
-
-        window.addEventListener('resize', function() {{
-            chartHeart.resize();
-            chartDelta.resize();
-        }});
-    </script>
-</body>
-</html>
-    """
-    with open(save_path, "w", encoding="utf-8") as f:
-        f.write(html_content)
-    print(f"网页已生成：{save_path}")
-
-
 # ============ 主流程 ============
 async def run_once():
     async with async_playwright() as p:
@@ -589,10 +397,10 @@ async def run_once():
 
     append_csv(data)
     try:
+        # 只生成 PNG 图表
         generate_chart(curr_dt.date(), CHART_FILE)
-        generate_html(curr_dt.date(), HTML_FILE) # 直接调用，无需读取外部模板
     except Exception as e:
-        print(f"生成图表/网页失败: {e}")
+        print(f"生成图表失败: {e}")
 
 
 async def main():
