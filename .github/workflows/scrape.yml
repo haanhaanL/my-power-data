@@ -58,8 +58,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          # 只需提交这三个生成的文件
-          git add power_data.csv chart.png index.html
+          # 只提交数据和图片，网页(index.html)是手动放进去的静态文件，无需提交
+          git add power_data.csv chart.png
           
           if git diff --staged --quiet; then
             echo "没有变更"
@@ -76,9 +76,8 @@ jobs:
             echo "push 失败，第 $i 次重试..."
             git pull --rebase origin ${{ github.ref_name }}
             if [ $? -ne 0 ]; then
-              # 忽略冲突，强制使用我们刚生成的文件
-              git checkout --ours power_data.csv chart.png index.html 2>/dev/null || true
-              git add power_data.csv chart.png index.html 2>/dev/null || true
+              git checkout --ours power_data.csv chart.png 2>/dev/null || true
+              git add power_data.csv chart.png 2>/dev/null || true
               git rebase --continue 2>/dev/null || true
             fi
             sleep $((i * 3))
