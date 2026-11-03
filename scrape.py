@@ -16,7 +16,7 @@ CSV_FILE = os.path.join(BASE_DIR, "power_data.csv")
 BJT = timezone(timedelta(hours=8))
 
 
-# ============ 抓取与存储 ============
+# ============ 工具函数 ============
 def parse_num(text):
     if not text:
         return None
@@ -24,71 +24,92 @@ def parse_num(text):
     return int(m.group(0).replace(",", "")) if m else None
 
 
-async def scrape_team(page, url):
-    if not url:
-        return {"今日心动人数": None, "团建电力值": None}
-
-    # 提速拦截：不加载图片、视频、字体
+async def block_unnecessary_resources(page):
+    """提速拦截：不加载图片、视频、字体"""
     await page.route(
         "**/*",
         lambda route: route.abort()
         if route.request.resource_type in ["image", "media", "font"]
         else route.continue_(),
     )
+
+
+# ============ 抓取逻辑（带重试与防超时） ============
+async def scrape_team(page, url):
+    if not url:
+        return {"今日心动人数": None, "团建电力值": None}
+
+    await block_unnecessary_resources(page)
     result = {"今日心动人数": None, "团建电力值": None}
 
-    try:
-        await page.goto(url, wait_until="domcontentloaded", timeout=15000)
+    # 最多重试 3 次
+    for attempt in range(3):
+        try:
+            # 使用 domcontentloaded 防止统计脚本挂起导致超时
+            await page.goto(url, wait_until="domcontentloaded", timeout=20000)
 
-        # 等带有“本团今日心动”的元素出现
-        heart_locator = page.locator("text=本团今日心动").first
-        await heart_locator.wait_for(state="attached", timeout=8000)
-        parent_text = await heart_locator.evaluate("el => el.parentElement.innerText")
-        num = parse_num(parent_text)
-        if num is not None and num > 0:
-            result["今日心动人数"] = num
+            # 1. 抓取“今日心动人数”
+            heart_locator = page.locator("text=本团今日心动").first
+            await heart_locator.wait_for(state="attached", timeout=15000) # 最长等15秒
+            parent_text = await heart_locator.evaluate("el => el.parentElement.innerText")
+            num = parse_num(parent_text)
+            
+            if num is not None and num > 0:
+                result["今日心动人数"] = num
 
-        # 等带有 千分位/千分位 格式的数字出现
-        power_locator = page.locator(
-            "text=/\\d{1,3}(?:,\\d{3})+\\s*\\/\\s*\\d{1,3}(?:,\\d{3})+/"
-        ).first
-        await power_locator.wait_for(state="attached", timeout=8000)
-        power_text = await power_locator.inner_text()
-        matches = re.findall(
-            r"(\d{1,3}(?:,\d{3})+)\s*/\s*(\d{1,3}(?:,\d{3})+)", power_text
-        )
-        if matches:
-            best = max(matches, key=lambda x: int(x[0].replace(",", "")))
-            if int(best[0].replace(",", "")) > 1000000:
-                result["团建电力值"] = int(best[0].replace(",", ""))
+            # 2. 抓取“团建电力值”
+            power_locator = page.locator("text=/\\d{1,3}(?:,\\d{3})+\\s*\\/\\s*\\d{1,3}(?:,\\d{3})+/").first
+            await power_locator.wait_for(state="attached", timeout=15000)
+            power_text = await power_locator.inner_text()
+            matches = re.findall(r"(\d{1,3}(?:,\d{3})+)\s*/\s*(\d{1,3}(?:,\d{3})+)", power_text)
+            
+            if matches:
+                best = max(matches, key=lambda x: int(x[0].replace(",", "")))
+                if int(best[0].replace(",", "")) > 1000000:
+                    result["团建电力值"] = int(best[0].replace(",", ""))
 
-    except Exception as e:
-        print(f"[scrape_team] 抓取超时或失败: {e}")
+            # 判断是否成功抓到有效数据
+            if result["今日心动人数"] and result["团建电力值"]:
+                print(f"[scrape_team] 第 {attempt+1} 次尝试成功!")
+                break  # 数据完整，跳出重试
+            else:
+                print(f"[scrape_team] 第 {attempt+1} 次尝试数据为空，刷新重试...")
+                await page.reload(wait_until="domcontentloaded", timeout=15000)
+                await asyncio.sleep(2) # 刷新后稍作缓冲
+
+        except Exception as e:
+            print(f"[scrape_team] 第 {attempt+1} 次尝试超时或失败: {e}")
+            await asyncio.sleep(2)
 
     return result
 
 
 async def scrape_power(page):
-    await page.route(
-        "**/*",
-        lambda route: route.abort()
-        if route.request.resource_type in ["image", "media", "font"]
-        else route.continue_(),
-    )
+    await block_unnecessary_resources(page)
     result = {"总电力值": None}
 
-    try:
-        await page.goto(URL_POWER, wait_until="domcontentloaded", timeout=15000)
-        await page.wait_for_selector("text=/\\d{1,3}(?:,\\d{3})+/", timeout=8000)
+    for attempt in range(3):
+        try:
+            await page.goto(URL_POWER, wait_until="domcontentloaded", timeout=20000)
+            # 等待包含千分位的数字出现
+            await page.wait_for_selector("text=/\\d{1,3}(?:,\\d{3})+/", timeout=15000)
 
-        body_text = await page.locator("body").inner_text()
-        nums = re.findall(r"\d{1,3}(?:,\d{3})+", body_text)
-        if nums:
-            max_num = max(int(n.replace(",", "")) for n in nums)
-            if max_num > 100000000:
-                result["总电力值"] = max_num
-    except Exception as e:
-        print(f"[scrape_power] 抓取超时或失败: {e}")
+            body_text = await page.locator("body").inner_text()
+            nums = re.findall(r"\d{1,3}(?:,\d{3})+", body_text)
+            if nums:
+                max_num = max(int(n.replace(",", "")) for n in nums)
+                # 总电力值通常极大，超过一亿
+                if max_num > 100000000:
+                    result["总电力值"] = max_num
+                    print(f"[scrape_power] 第 {attempt+1} 次尝试成功!")
+                    break
+            print(f"[scrape_power] 第 {attempt+1} 次尝试未拿到合适数值，刷新重试...")
+            await page.reload(wait_until="domcontentloaded", timeout=15000)
+            await asyncio.sleep(2)
+
+        except Exception as e:
+            print(f"[scrape_power] 第 {attempt+1} 次尝试超时或失败: {e}")
+            await asyncio.sleep(2)
 
     return result
 
@@ -108,9 +129,8 @@ def load_all_rows():
 
 
 def parse_dt_loose(s):
-    """宽松解析 CSV 里的时间字符串，兼容有无前导零、/ 与 -、带不带秒。"""
-    if not s:
-        return None
+    """宽松解析时间字符串，兼容 2026/11/3 09:00 格式"""
+    if not s: return None
     s = re.sub(r"(\d+[/-]\d+[/-]\d+)\s+(\d{1}):", r"\1 0\2:", s)
     s = s.strip().replace("/", "-")
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
@@ -122,19 +142,16 @@ def parse_dt_loose(s):
 
 
 def find_prev_row(curr_dt, parsed_rows):
-    """
-    取严格早于当前时间的最后一条记录（相邻两次抓取的增量语义）。
-    parsed_rows 需已按时间升序排序，元素为 (datetime, row)。
-    """
+    """寻找严格早于当前时间的最后一条记录"""
     candidate = None
     for dt, r in parsed_rows:
         if dt >= curr_dt:
             break
         candidate = (dt, r)
-    return candidate  # (datetime, row) 或 None
+    return candidate
 
 
-# ============ 写入 CSV（含增幅计算） ============
+# ============ 写入 CSV（含跨天增幅计算） ============
 def append_csv(row_dict):
     file_exists = os.path.exists(CSV_FILE)
     header, all_rows = load_all_rows()
@@ -150,7 +167,7 @@ def append_csv(row_dict):
             f"{curr_dt.hour:02d}:{curr_dt.minute:02d}"
         )
 
-    # 解析历史行，按时间升序
+    # 解析历史行
     parsed_rows = []
     for r in all_rows:
         if not r or len(r) < 10:
@@ -160,7 +177,7 @@ def append_csv(row_dict):
             parsed_rows.append((dt, r))
     parsed_rows.sort(key=lambda x: x[0])
 
-    # 回溯：严格早于当前时间的最后一条
+    # 回溯上一条
     prev = find_prev_row(curr_dt, parsed_rows)
     prev_dt, prev_row = (prev[0], prev[1]) if prev else (None, None)
 
@@ -169,7 +186,7 @@ def append_csv(row_dict):
             return ""
         if prev_row is None or prev_dt is None:
             return ""
-        # 跨天：今日心动人数会重置，增幅无意义，留空
+        # 跨天增幅留空
         if prev_dt.date() != curr_dt.date():
             return ""
         try:
@@ -197,21 +214,10 @@ def append_csv(row_dict):
     with open(CSV_FILE, "a", encoding="utf-8-sig", newline="") as f:
         writer = csv.writer(f)
         if not file_exists:
-            writer.writerow(
-                [
-                    "时间",
-                    "心动人数1",
-                    "增幅",
-                    "团建电力值1",
-                    "增幅",
-                    "心动人数2",
-                    "增幅",
-                    "团建电力值2",
-                    "增幅",
-                    "总电力值",
-                    "增幅",
-                ]
-            )
+            writer.writerow([
+                "时间", "心动人数1", "增幅", "团建电力值1", "增幅", 
+                "心动人数2", "增幅", "团建电力值2", "增幅", "总电力值", "增幅"
+            ])
         writer.writerow(row)
 
     if prev_dt is None:
@@ -227,18 +233,33 @@ def append_csv(row_dict):
 async def run_once():
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
+        
+        # === 深度伪装真实 iPhone 环境 ===
         context = await browser.new_context(
-            user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) "
-            "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 "
-            "Mobile/15E148 Safari/604.1"
+            user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1",
+            viewport={"width": 390, "height": 844},
+            device_scale_factor=3,
+            is_mobile=True,
+            has_touch=True,
+            locale="zh-CN",
+            timezone_id="Asia/Shanghai",
         )
+        
+        # 禁用 WebRTC，防止真实 IP 泄露导致被拒
+        await context.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+            delete navigator.__proto__.webdriver;
+            window.RTCPeerConnection = function() {};
+            window.RTCPeerConnection.prototype.createOffer = function() { return Promise.resolve(); };
+        """)
 
         page1 = await context.new_page()
         page2 = await context.new_page()
 
         data = {"时间": datetime.now(BJT).strftime("%Y-%m-%d %H:%M:%S")}
 
-        # 并行抓取
+        print("开始抓取数据...")
+        # 并行抓取（两个页面各自带重试逻辑）
         t1, pwr = await asyncio.gather(
             scrape_team(page1, URL_TEAM1),
             scrape_power(page2),
@@ -251,6 +272,11 @@ async def run_once():
         data["总电力值"] = pwr["总电力值"]
 
         await browser.close()
+
+    # 如果全没抓到，就不写了（避免污染 CSV）
+    if not data["今日心动人数1"] and not data["团建电力值1"] and not data["总电力值"]:
+        print("❌ 本次抓取所有数据均失败，放弃写入 CSV 以保证数据纯净。")
+        return
 
     append_csv(data)
 
