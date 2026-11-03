@@ -107,7 +107,7 @@
             width: 100%;
             border-collapse: collapse;
             font-size: 13px;
-            min-width: 850px; /* 手机上必须滑动才能看全 */
+            min-width: 850px; 
         }
         th, td {
             padding: 10px 8px;
@@ -139,7 +139,8 @@
         
         .val-heart { font-weight: bold; color: #333; }
         .val-power { font-weight: bold; color: #333; }
-        .val-total { font-weight: bold; color: #2980b9; } 
+        /* 总电增幅颜色改为粉色 */
+        .val-total { font-weight: bold; color: #FF69B4; } 
         
         .up { color: #e74c3c; font-weight: bold; }
         .down { color: #27ae60; font-weight: bold; }
@@ -184,7 +185,7 @@
                 </div>
             </div>
 
-            <!-- 图表区域 -->
+            <!-- 图表区域：拆分为三个卡片 -->
             <div class="card">
                 <div class="title">心动人数趋势 (👈左右滑动👉)</div>
                 <div class="chart-scroll-box">
@@ -193,9 +194,16 @@
             </div>
 
             <div class="card">
-                <div class="title">增幅趋势 (👈左右滑动👉)</div>
+                <div class="title">团建电力增幅趋势 (👈左右滑动👉)</div>
                 <div class="chart-scroll-box">
                     <div class="chart-wrapper" id="chartPower" style="height: 300px;"></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="title" style="color: #FF69B4;">总电力增幅趋势 (👈左右滑动👉)</div>
+                <div class="chart-scroll-box">
+                    <div class="chart-wrapper" id="chartTotal" style="height: 300px;"></div>
                 </div>
             </div>
         </div>
@@ -227,18 +235,20 @@
             return '0';
         }
 
-        // 辅助安全转换数字的函数
         function getNum(val) {
             if (val === '' || val === undefined || val === null) return null;
             const num = Number(val);
             return isNaN(num) ? null : num;
         }
 
+        // 初始化三个图表
         const chartHeart = echarts.init(document.getElementById('chartHeart'), null, { width: 900, height: 350 });
         const chartPower = echarts.init(document.getElementById('chartPower'), null, { width: 900, height: 300 });
+        const chartTotal = echarts.init(document.getElementById('chartTotal'), null, { width: 900, height: 300 });
         
         chartHeart.showLoading();
         chartPower.showLoading();
+        chartTotal.showLoading();
 
         let globalDataMap = {}; 
 
@@ -271,14 +281,13 @@
 
                     if (!globalDataMap[formattedDate]) globalDataMap[formattedDate] = {};
                     
-                    // === 修复了字段映射错位，并采用了 getNum 安全提取 ===
                     globalDataMap[formattedDate][timeHour] = {
                         heart: getNum(row["心动人数1"]),
                         heartDelta: getNum(row["增幅"]),
                         power: getNum(row["团建电力值1"]),
                         powerDelta: getNum(row["增幅_1"]),
                         totalPower: getNum(row["总电力值"]),
-                        totalDelta: getNum(row["增幅_4"]) // 正确对应第 5 个增幅列
+                        totalDelta: getNum(row["增幅_4"]) 
                     };
                 });
 
@@ -358,7 +367,7 @@
                         <td class="val-power">${formatNum(row.power)}</td>
                         <td>${formatDelta(row.powerDelta)}</td>
                         <td class="val-total">${formatNum(row.totalPower)}</td>
-                        <td>${formatDelta(row.totalDelta)}</td>
+                        <td style="color: #FF69B4; font-weight: bold;">${formatDelta(row.totalDelta)}</td>
                     `;
                     tbody.appendChild(tr);
                 });
@@ -381,42 +390,53 @@
 
             const heartSeries = [];
             const powerSeries = [];
+            const totalSeries = [];
             
+            // === 今天（选中日）的数据 ===
             if (dataMap[selectedDate]) {
                 const shortName = selectedDate.substring(5); 
+                
                 heartSeries.push({
                     name: shortName + '心动', type: 'line', data: getSeriesData(selectedDate, 'heart'),
                     smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#FF8C42' }, lineStyle: { color: '#FF8C42', width: 2.5 }
                 });
                 
-                // 画团建增幅线
                 powerSeries.push({
                     name: shortName + '团建增幅', type: 'line', data: getSeriesData(selectedDate, 'powerDelta'),
                     smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#FF8C42' }, lineStyle: { color: '#FF8C42', width: 2.5 }
                 });
 
-                // 画总电增幅线
-                powerSeries.push({
+                totalSeries.push({
                     name: shortName + '总电增幅', type: 'line', data: getSeriesData(selectedDate, 'totalDelta'),
-                    smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#2980b9' }, lineStyle: { color: '#2980b9', width: 2.5 }
+                    smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#FF69B4' }, lineStyle: { color: '#FF69B4', width: 2.5 }
                 });
             }
             
+            // === 昨天（对比日）的数据 ===
             if (dataMap[prevDateStr]) {
                 const shortName = prevDateStr.substring(5);
+                
                 heartSeries.push({
                     name: shortName + '心动', type: 'line', data: getSeriesData(prevDateStr, 'heart'),
                     smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#FFB3C6' }, lineStyle: { color: '#FFB3C6', width: 2 }
                 });
+                
                 powerSeries.push({
                     name: shortName + '团建增幅', type: 'line', data: getSeriesData(prevDateStr, 'powerDelta'),
                     smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#FFB3C6' }, lineStyle: { color: '#FFB3C6', width: 2 }
                 });
+                
+                totalSeries.push({
+                    name: shortName + '总电增幅', type: 'line', data: getSeriesData(prevDateStr, 'totalDelta'),
+                    smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#FFB3C6' }, lineStyle: { color: '#FFB3C6', width: 2 }
+                });
             }
 
+            // === 其他历史日期的虚线 ===
             const allDates = Object.keys(dataMap).sort();
             allDates.forEach(date => {
                 if (date === selectedDate || date === prevDateStr) return;
+                
                 heartSeries.push({
                     name: date.substring(5) + '心动', type: 'line', data: getSeriesData(date, 'heart'),
                     smooth: false, symbol: 'none', lineStyle: { color: '#b0b0b0', width: 1.5, type: 'dashed' },
@@ -427,8 +447,14 @@
                     smooth: false, symbol: 'none', lineStyle: { color: '#b0b0b0', width: 1.5, type: 'dashed' },
                     emphasis: { disabled: true }
                 });
+                totalSeries.push({
+                    name: date.substring(5) + '总电增幅', type: 'line', data: getSeriesData(date, 'totalDelta'),
+                    smooth: false, symbol: 'none', lineStyle: { color: '#b0b0b0', width: 1.5, type: 'dashed' },
+                    emphasis: { disabled: true }
+                });
             });
 
+            // 渲染心动图
             chartHeart.hideLoading();
             chartHeart.setOption({
                 tooltip: { trigger: 'axis', confine: true },
@@ -439,6 +465,7 @@
                 series: heartSeries
             }, true);
 
+            // 渲染团建增幅图
             chartPower.hideLoading();
             chartPower.setOption({
                 tooltip: { trigger: 'axis', confine: true },
@@ -448,6 +475,17 @@
                 yAxis: { type: 'value', name: '增幅', scale: true, axisLabel: { fontSize: 11, formatter: function(v) { return v >= 1000000 ? (v / 1000000).toFixed(1) + 'm' : v; } } },
                 series: powerSeries
             }, true);
+
+            // 渲染总电增幅图（粉色系）
+            chartTotal.hideLoading();
+            chartTotal.setOption({
+                tooltip: { trigger: 'axis', confine: true },
+                legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12 }, type: 'scroll' },
+                grid: { left: '2%', right: '5%', bottom: '10%', top: '15%', containLabel: true },
+                xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 0, fontSize: 11 } },
+                yAxis: { type: 'value', name: '增幅', scale: true, axisLabel: { fontSize: 11, formatter: function(v) { return v >= 1000000 ? (v / 1000000).toFixed(1) + 'm' : v; } } },
+                series: totalSeries
+            }, true);
         }
 
         let resizeTimer;
@@ -456,6 +494,7 @@
             resizeTimer = setTimeout(function() {
                 chartHeart.resize({ width: 900, height: 350 });
                 chartPower.resize({ width: 900, height: 300 });
+                chartTotal.resize({ width: 900, height: 300 });
             }, 200);
         });
     </script>
