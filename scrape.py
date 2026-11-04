@@ -48,16 +48,25 @@ async def scrape_team(page, url):
             # 使用 domcontentloaded 防止统计脚本挂起导致超时
             await page.goto(url, wait_until="domcontentloaded", timeout=20000)
 
-            # 1. 抓取“今日心动人数”
-            heart_locator = page.locator("text=本团今日心动").first
-            await heart_locator.wait_for(state="attached", timeout=15000)
-            parent_text = await heart_locator.evaluate("el => el.parentElement.innerText")
-            num = parse_num(parent_text)
+            # 1. 抓取“今日心动人数”（直取 .stats-value .value，等文本出现，允许 0）
+            try:
+                await page.wait_for_function(
+                    """() => {
+                        const items = [...document.querySelectorAll('.stats-item')];
+                        const it = items.find(e => e.innerText.includes('本团今日心动'));
+                        const v = it && it.querySelector('.stats-value .value');
+                        return v && /\\d/.test(v.textContent.trim());
+                    }""",
+                    timeout=15000,
+                )
+                item = page.locator(".stats-item", has=page.locator("text=本团今日心动")).first
+                val_text = await item.locator(".stats-value .value").first.inner_text()
+                result["今日心动人数"] = int(val_text.replace(",", "").strip())
+            except Exception as e:
+                print(f"[scrape_team] 心动人数未取到: {e}")
+                result["今日心动人数"] = None
 
-            if num is not None and num > 0:
-                result["今日心动人数"] = num
-
-            # 2. 抓取“团建电力值”
+            # 2. 抓取“团建电力值”（保持原有逻辑不动）
             power_locator = page.locator("text=/\\d{1,3}(?:,\\d{3})+\\s*\\/\\s*\\d{1,3}(?:,\\d{3})+/").first
             await power_locator.wait_for(state="attached", timeout=15000)
             power_text = await power_locator.inner_text()
@@ -68,8 +77,8 @@ async def scrape_team(page, url):
                 if int(best[0].replace(",", "")) > 1000000:
                     result["团建电力值"] = int(best[0].replace(",", ""))
 
-            # 判断是否成功抓到有效数据
-            if result["今日心动人数"] and result["团建电力值"]:
+            # 判断是否成功抓到有效数据（0 是有效值，不判失败）
+            if result["今日心动人数"] is not None and result["团建电力值"] is not None:
                 print(f"[scrape_team] 第 {attempt+1} 次尝试成功!")
                 break
             else:
@@ -142,6 +151,7 @@ def parse_dt_loose(s):
     """宽松解析时间字符串，兼容 2026/11/3 09:00 格式"""
     if not s:
         return None
+    s = re.sub(r"(\d+[/-]\d+[/-]\d+)\s+(\d{1}):(\d{1})(?!\d)", r"\1 0\2:0\3", s)
     s = re.sub(r"(\d+[/-]\d+[/-]\d+)\s+(\d{1}):", r"\1 0\2:", s)
     s = s.strip().replace("/", "-")
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
@@ -158,19 +168,19 @@ def find_prev_row(curr_dt, parsed_rows, col_idx):
     """
     candidate = None
     for dt, r in parsed_rows:
-        if dt >= curr_dt:
+        if dt > curr_dt:                     # 同刻有值行也可作为基准
             break
-        # 检查该行的目标列是否有有效数据
+        # 检查该行的目标列是否有有效数据（带逗号也算有值）
         if len(r) > col_idx and r[col_idx] not in ("", None):
             try:
-                int(r[col_idx])
-                candidate = (dt, r)  # 记录这行，继续往下找，直到遇到当前时间
+                int(str(r[col_idx]).replace(",", ""))
+                candidate = (dt, r)
             except ValueError:
                 pass
     return candidate
 
 
-# ============ 写入 CSV（新列结构，含跨天增幅计算） ============
+# ============ 写入 CSV（含每日重置列的跨天首条增幅） ============
 def append_csv(row_dict):
     file_exists = os.path.exists(CSV_FILE)
     header, all_rows = load_all_rows()
@@ -196,37 +206,47 @@ def append_csv(row_dict):
             parsed_rows.append((dt, r))
     parsed_rows.sort(key=lambda x: x[0])
 
-    def calc_delta(curr_val, col_idx):
-        if curr_val is None or curr_val == "":
+    def fmt_val(v):
+        """0 是有效值，只有 None 才写空"""
+        return "" if v is None else v
+
+    def calc_delta(curr_val, col_idx, daily_reset=False):
+        """
+        计算增幅：
+        - 每列独立找最近一个有值行作为基准（跳过空值，避免空值导致读不到增值）
+        - 跨天时：
+            * 每日重置列（心动）：当天从 0 开始，当前值即当日增量
+            * 累计列（电力/总电力/发电人数）：跨天不产生真实差，留空
+        """
+        if curr_val is None:
             return ""
 
-        # 每一列单独去寻找最近一条有有效数据的记录
         prev = find_prev_row(curr_dt, parsed_rows, col_idx)
         if prev is None:
-            return ""
+            # 没有历史有值行：每日重置列首条值即当日增量，累计列无基准留空
+            return int(curr_val) if daily_reset else ""
 
         prev_dt, prev_row = prev
 
-        # 跨天增幅留空
         if prev_dt.date() != curr_dt.date():
-            return ""
+            return int(curr_val) if daily_reset else ""
 
         try:
-            prev_val_str = prev_row[col_idx]
-            return int(curr_val) - int(prev_val_str)
+            return int(curr_val) - int(str(prev_row[col_idx]).replace(",", ""))
         except (ValueError, TypeError, IndexError):
             return ""
 
-    # 新列顺序：时间, 心动人数1, 增幅, 团建电力值1, 增幅, 总电力值, 增幅, 总发电人数, 增幅
+    # 列顺序：时间, 心动人数1, 增幅, 团建电力值1, 增幅, 总电力值, 增幅, 总发电人数, 增幅
+    # 只有心动是每日重置列，跨天首条增幅=自身；其余累计列跨天留空
     row = [
         formatted_time,
-        row_dict["今日心动人数1"] or "",
-        calc_delta(row_dict["今日心动人数1"], 1),
-        row_dict["团建电力值1"] or "",
+        fmt_val(row_dict["今日心动人数1"]),
+        calc_delta(row_dict["今日心动人数1"], 1, daily_reset=True),
+        fmt_val(row_dict["团建电力值1"]),
         calc_delta(row_dict["团建电力值1"], 3),
-        row_dict["总电力值"] or "",
+        fmt_val(row_dict["总电力值"]),
         calc_delta(row_dict["总电力值"], 5),
-        row_dict["总发电人数"] or "",
+        fmt_val(row_dict["总发电人数"]),
         calc_delta(row_dict["总发电人数"], 7),
     ]
 
@@ -286,8 +306,8 @@ async def run_once():
         await browser.close()
 
     # 如果全没抓到，就不写了（避免污染 CSV）
-    if (not data["今日心动人数1"] and not data["团建电力值1"]
-            and not data["总电力值"] and not data["总发电人数"]):
+    if (data["今日心动人数1"] is None and data["团建电力值1"] is None
+            and data["总电力值"] is None and data["总发电人数"] is None):
         print("❌ 本次抓取所有数据均失败，放弃写入 CSV 以保证数据纯净。")
         return
 
