@@ -76,8 +76,6 @@
             line-height: 1.6; box-shadow: 0 2px 6px rgba(231,76,60,0.04);
         }
         .stats .val-text { color: #e74c3c; font-weight: bold; }
-        .stats .diff-up { color: #FF69B4; font-weight: bold; }
-        .stats .diff-down { color: #27ae60; font-weight: bold; }
 
         /* 卡片通用样式 */
         .card {
@@ -130,6 +128,7 @@
         .val-heart { font-weight: bold; color: #333; }
         .val-power { font-weight: bold; color: #333; }
         .val-total { font-weight: bold; color: #333; } 
+        .val-people { font-weight: bold; color: #333; }
         
         .up { color: #e74c3c; font-weight: bold; }
         .down { color: #27ae60; font-weight: bold; }
@@ -195,6 +194,8 @@
                                     <th>电力增幅</th>
                                     <th>总电力值</th>
                                     <th>总电增幅</th>
+                                    <th>总发电人数</th>
+                                    <th>发电人数增幅</th>
                                 </tr>
                             </thead>
                             <tbody></tbody>
@@ -307,13 +308,16 @@
 
                     if (!globalDataMap[formattedDate]) globalDataMap[formattedDate] = {};
                     
+                    // 9 列新版 CSV 字段映射（PapaParse 对重名列自动加后缀）
                     globalDataMap[formattedDate][timeHour] = {
                         heart: getNum(row["心动人数1"]),
                         heartDelta: getNum(row["增幅"]),
                         power: getNum(row["团建电力值1"]),
                         powerDelta: getNum(row["增幅_1"]),
                         totalPower: getNum(row["总电力值"]),
-                        totalDelta: getNum(row["增幅_4"]) 
+                        totalDelta: getNum(row["增幅_2"]),
+                        totalPeople: getNum(row["总发电人数"]),
+                        totalPeopleDelta: getNum(row["增幅_3"])
                     };
                 });
 
@@ -357,34 +361,16 @@
             const shortDate = selectedDate.substring(5);
             document.getElementById('mergedTitle').innerText = `团建数据表 · ${shortDate}`;
 
+            // === 顶部统计：只显示今日团建总增幅 ===
             let selectedTotalDelta = 0;
-            let prevTotalDelta = 0;
-            
             if (dataMap[selectedDate]) {
                 Object.values(dataMap[selectedDate]).forEach(d => {
                     if (d.powerDelta) selectedTotalDelta += d.powerDelta;
                 });
             }
-            if (dataMap[prevDateStr]) {
-                Object.values(dataMap[prevDateStr]).forEach(d => {
-                    if (d.powerDelta) prevTotalDelta += d.powerDelta;
-                });
-            }
             
-            function fmtW(v) { return (v / 10000).toFixed(1) + 'w'; }
-            
-            const diff = selectedTotalDelta - prevTotalDelta;
-            let diffStr = '';
-            if (diff > 0) {
-                diffStr = `<span class="diff-up">(+${fmtW(diff)})</span>`;
-            } else if (diff < 0) {
-                diffStr = `<span class="diff-down">(${fmtW(diff)})</span>`;
-            } else {
-                diffStr = `(0)`;
-            }
-
             document.getElementById('tableSumStats').innerHTML = 
-                `团建总增幅：${prevDateStr.substring(5)} <span class="val-text">${fmtW(prevTotalDelta)}</span> | ${selectedDate.substring(5)} <span class="val-text">${fmtW(selectedTotalDelta)}</span> ${diffStr}`;
+                `今日团建总增幅：<span class="val-text">${formatW(selectedTotalDelta)}</span>`;
             
             document.getElementById('tableTitle').innerText = `数据明细 (最近10条)`;
             document.getElementById('chartTitleHeart').innerText = `心动人数`;
@@ -404,7 +390,7 @@
             tbody.innerHTML = '';
 
             if (latestRows.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#999;">暂无数据</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#999;">暂无数据</td></tr>';
             } else {
                 latestRows.forEach(row => {
                     const tr = document.createElement('tr');
@@ -416,6 +402,8 @@
                         <td>${formatDelta(row.powerDelta)}</td>
                         <td class="val-total">${formatNum(row.totalPower)}</td>
                         <td>${formatDelta(row.totalDelta)}</td>
+                        <td class="val-people">${formatNum(row.totalPeople)}</td>
+                        <td>${formatDelta(row.totalPeopleDelta)}</td>
                     `;
                     tbody.appendChild(tr);
                 });
