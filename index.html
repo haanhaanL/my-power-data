@@ -76,6 +76,8 @@
             line-height: 1.6; box-shadow: 0 2px 6px rgba(231,76,60,0.04);
         }
         .stats .val-text { color: #e74c3c; font-weight: bold; }
+        .stats .diff-up { color: #FF69B4; font-weight: bold; }
+        .stats .diff-down { color: #999999; font-weight: bold; }
 
         /* 卡片通用样式 */
         .card {
@@ -361,16 +363,33 @@
             const shortDate = selectedDate.substring(5);
             document.getElementById('mergedTitle').innerText = `团建数据表 · ${shortDate}`;
 
-            // === 顶部统计：只显示今日团建总增幅 ===
+            // === 顶部统计：今日团建总增幅 + 与昨日对比 ===
             let selectedTotalDelta = 0;
+            let prevTotalDelta = 0;
+
             if (dataMap[selectedDate]) {
                 Object.values(dataMap[selectedDate]).forEach(d => {
                     if (d.powerDelta) selectedTotalDelta += d.powerDelta;
                 });
             }
-            
+            if (dataMap[prevDateStr]) {
+                Object.values(dataMap[prevDateStr]).forEach(d => {
+                    if (d.powerDelta) prevTotalDelta += d.powerDelta;
+                });
+            }
+
+            const diff = selectedTotalDelta - prevTotalDelta;
+            let diffStr = '';
+            if (diff > 0) {
+                diffStr = `<span class="diff-up">(+${formatW(diff)})</span>`;
+            } else if (diff < 0) {
+                diffStr = `<span class="diff-down">(${formatW(diff)})</span>`;
+            } else {
+                diffStr = `(0)`;
+            }
+
             document.getElementById('tableSumStats').innerHTML = 
-                `今日团建总增幅：<span class="val-text">${formatW(selectedTotalDelta)}</span>`;
+                `今日团建总增幅：<span class="val-text">${formatW(selectedTotalDelta)}</span> ${diffStr}`;
             
             document.getElementById('tableTitle').innerText = `数据明细 (最近10条)`;
             document.getElementById('chartTitleHeart').innerText = `心动人数`;
