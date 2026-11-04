@@ -266,7 +266,7 @@
         }
 
         function formatW(v) {
-            return v >= 10000 ? (v / 10000).toFixed(1) + 'w' : v;
+            return (v / 10000).toFixed(1) + 'w';
         }
 
         const chartHeart = echarts.init(document.getElementById('chartHeart'));
