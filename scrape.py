@@ -66,16 +66,36 @@ async def scrape_team(page, url):
                 print(f"[scrape_team] 心动人数未取到: {e}")
                 result["今日心动人数"] = None
 
-            # 2. 抓取“团建电力值”（保持原有逻辑不动）
-            power_locator = page.locator("text=/\\d{1,3}(?:,\\d{3})+\\s*\\/\\s*\\d{1,3}(?:,\\d{3})+/").first
-            await power_locator.wait_for(state="attached", timeout=15000)
-            power_text = await power_locator.inner_text()
-            matches = re.findall(r"(\d{1,3}(?:,\d{3})+)\s*/\s*(\d{1,3}(?:,\d{3})+)", power_text)
-
-            if matches:
-                best = max(matches, key=lambda x: int(x[0].replace(",", "")))
-                if int(best[0].replace(",", "")) > 1000000:
-                    result["团建电力值"] = int(best[0].replace(",", ""))
+            # 2. 抓取“团建电力值”（累计值，取分母最大的目标进度；目标1达成后自动切到目标2/3/4…）
+            try:
+                await page.wait_for_function(
+                    """() => {
+                        const re = /\\d{1,3}(?:,\\d{3})+\\s*\\/\\s*\\d{1,3}(?:,\\d{3})+/;
+                        return re.test(document.body.innerText);
+                    }""",
+                    timeout=15000,
+                )
+                body_text = await page.locator("body").inner_text()
+                matches = re.findall(
+                    r"(\d{1,3}(?:,\d{3})+)\s*/\s*(\d{1,3}(?:,\d{3})+)",
+                    body_text,
+                )
+                if matches:
+                    pairs = [
+                        (int(a.replace(",", "")), int(b.replace(",", "")))
+                        for a, b in matches
+                    ]
+                    # 分母 = 目标上限，逐级递增；取分母最大 = 最后一个目标
+                    max_y = max(y for _, y in pairs)
+                    # 同一上限下可能同时存在“已达成满值 Y/Y”和“进行中 X/Y”；
+                    # 进行中的 X 是真实累计，已达成满值的 X=Y 是假值，取小的
+                    candidates = [x for x, y in pairs if y == max_y]
+                    best_x = min(candidates)
+                    if best_x > 1000000:
+                        result["团建电力值"] = best_x
+            except Exception as e:
+                print(f"[scrape_team] 团建电力值未取到: {e}")
+                result["团建电力值"] = None
 
             # 判断是否成功抓到有效数据（0 是有效值，不判失败）
             if result["今日心动人数"] is not None and result["团建电力值"] is not None:
