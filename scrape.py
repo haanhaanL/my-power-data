@@ -48,23 +48,18 @@ async def scrape_team(page, url):
             # 使用 domcontentloaded 防止统计脚本挂起导致超时
             await page.goto(url, wait_until="domcontentloaded", timeout=20000)
 
-            # 1. 抓取“今日心动人数”（全文正则，锚定“本团今日心动”就近取数字，允许 0）
+            # 1. 抓取“今日心动人数”（沿用验证有效的 text= 定位 + parentElement 取数）
             try:
-                await page.wait_for_function(
-                    """() => /本团今日心动[\\s\\S]{0,50}?[\\d,]+/.test(document.body.innerText)""",
-                    timeout=15000,
-                )
-                body_text = await page.locator("body").inner_text()
-                # 优先匹配“数字 + 本团今日心动”（值在文案前）
-                m = re.search(r"([\d,]+)\s*人?\s*本团今日心动", body_text)
-                if not m:
-                    # 兜底匹配“本团今日心动 + 数字”（值在文案后）
-                    m = re.search(r"本团今日心动[\s\S]{0,50}?([\d,]+)", body_text)
-                if m:
-                    result["今日心动人数"] = int(m.group(1).replace(",", "").strip())
-                else:
-                    print("[scrape_team] 心动人数未匹配到数字")
-                    result["今日心动人数"] = None
+                await page.wait_for_selector("text=本团今日心动", timeout=20000)
+            except Exception:
+                pass
+
+            await page.wait_for_timeout(3000)
+
+            try:
+                heart_ele = page.locator("text=本团今日心动").first
+                parent_text = await heart_ele.evaluate("el => el.parentElement.innerText")
+                result["今日心动人数"] = parse_num(parent_text)
             except Exception as e:
                 print(f"[scrape_team] 心动人数未取到: {e}")
                 result["今日心动人数"] = None
