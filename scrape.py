@@ -232,9 +232,9 @@ def append_csv(row_dict):
         """
         计算增幅：
         - 每列独立找最近一个有值行作为基准（跳过空值，避免空值导致读不到增值）
-        - 跨天时：
-            * 每日重置列（心动）：当天从 0 开始，当前值即当日增量
-            * 累计列（电力/总电力/发电人数）：跨天不产生真实差，留空
+        - 只有每日重置列（心动）需要跨天特殊处理：
+            * 跨天时当天从 0 开始，当前值即当日增量
+        - 累计列（电力/总电力/发电人数）不判断跨天，直接减最近有值行
         """
         if curr_val is None:
             return ""
@@ -246,8 +246,9 @@ def append_csv(row_dict):
 
         prev_dt, prev_row = prev
 
-        if prev_dt.date() != curr_dt.date():
-            return int(curr_val) if daily_reset else ""
+        # 只有每日重置列需要跨天特殊处理
+        if daily_reset and prev_dt.date() != curr_dt.date():
+            return int(curr_val)
 
         try:
             return int(curr_val) - int(str(prev_row[col_idx]).replace(",", ""))
@@ -255,7 +256,7 @@ def append_csv(row_dict):
             return ""
 
     # 列顺序：时间, 心动人数1, 增幅, 团建电力值1, 增幅, 总电力值, 增幅, 总发电人数, 增幅
-    # 只有心动是每日重置列，跨天首条增幅=自身；其余累计列跨天留空
+    # 心动是每日重置列，跨天首条增幅=自身；其余累计列跨天也正常减最近有值行
     row = [
         formatted_time,
         fmt_val(row_dict["今日心动人数1"]),
