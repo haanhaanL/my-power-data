@@ -513,6 +513,9 @@
                 });
             });
 
+            // === 图例按日期升序排列（MM-DD 短名，与 series.name 一致） ===
+            const legendOrder = allDates.map(d => d.substring(5));
+
             // === 心动图表专用悬浮框（带增幅） ===
             const heartTooltipFormatter = function(params) {
                 if (!params || !params.length) return '';
@@ -560,7 +563,7 @@
             chartHeart.hideLoading();
             chartHeart.setOption({
                 tooltip: { trigger: 'axis', confine: true, formatter: heartTooltipFormatter },
-                legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12, color: '#666' }, type: 'scroll' },
+                legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12, color: '#666' }, type: 'scroll', data: legendOrder },
                 grid: { left: '2%', right: '5%', bottom: '10%', top: '18%', containLabel: true },
                 xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 1, fontSize: 11, color: '#888' }, axisLine: { lineStyle: { color: '#f0d6e4' } } },
                 yAxis: { type: 'value', scale: true, axisLabel: { fontSize: 11, color: '#888', formatter: formatW }, axisLine: { lineStyle: { color: '#f0d6e4' } }, splitLine: { lineStyle: { color: '#faf0f6' } } },
@@ -570,7 +573,7 @@
             chartPower.hideLoading();
             chartPower.setOption({
                 tooltip: { trigger: 'axis', confine: true, formatter: defaultTooltipFormatter },
-                legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12, color: '#666' }, type: 'scroll' },
+                legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12, color: '#666' }, type: 'scroll', data: legendOrder },
                 grid: { left: '2%', right: '5%', bottom: '10%', top: '18%', containLabel: true },
                 xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 1, fontSize: 11, color: '#888' }, axisLine: { lineStyle: { color: '#f0d6e4' } } },
                 yAxis: { type: 'value', scale: true, axisLabel: { fontSize: 11, color: '#888', formatter: formatW }, axisLine: { lineStyle: { color: '#f0d6e4' } }, splitLine: { lineStyle: { color: '#faf0f6' } } },
@@ -580,7 +583,7 @@
             chartTotal.hideLoading();
             chartTotal.setOption({
                 tooltip: { trigger: 'axis', confine: true, formatter: defaultTooltipFormatter },
-                legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12, color: '#666' }, type: 'scroll' },
+                legend: { top: '0%', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12, color: '#666' }, type: 'scroll', data: legendOrder },
                 grid: { left: '2%', right: '5%', bottom: '10%', top: '18%', containLabel: true },
                 xAxis: { type: 'category', boundaryGap: false, data: xAxisHours, axisLabel: { interval: 1, fontSize: 11, color: '#888' }, axisLine: { lineStyle: { color: '#f0d6e4' } } },
                 yAxis: { type: 'value', scale: true, axisLabel: { fontSize: 11, color: '#888', formatter: formatW }, axisLine: { lineStyle: { color: '#f0d6e4' } }, splitLine: { lineStyle: { color: '#faf0f6' } } },
