@@ -513,8 +513,8 @@
                 });
             });
 
-            // === 图例按日期升序排列（MM-DD 短名，与 series.name 一致） ===
-            const legendOrder = allDates.map(d => d.substring(5));
+            // === 图例按日期倒序排列（MM-DD 短名，与 series.name 一致） ===
+            const legendOrder = allDates.slice().reverse().map(d => d.substring(5));
 
             // === 心动图表专用悬浮框（带增幅） ===
             const heartTooltipFormatter = function(params) {
