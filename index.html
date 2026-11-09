@@ -344,15 +344,15 @@
                 });
             }
 
-            // 获取近7日日期（包含选中日期在内，按日期倒序取7天）
+            // 获取最近5日日期（包含选中日期在内，按日期倒序取5天）
             const allDates = Object.keys(dataMap).sort().reverse();
-            const recent7Dates = allDates.slice(0, 7).reverse(); // 正序排列便于图例
+            const recent5Dates = allDates.slice(0, 5).reverse(); // 正序排列便于图例
 
-            // 构建两个图表的 series（仅近7日）
+            // 构建两个图表的 series（仅最近5日）
             const totalDeltaSeries = [];
             const peopleDeltaSeries = [];
 
-            recent7Dates.forEach(date => {
+            recent5Dates.forEach(date => {
                 const shortName = date.substring(5);
                 const isSelected = date === selectedDate;
                 const isPrev = date === prevDateStr;
@@ -391,16 +391,18 @@
                 });
             });
 
-            // 图例顺序：近7日按日期正序
-            const legendOrder = recent7Dates.map(d => d.substring(5));
+            // 图例顺序：最近5日按日期正序
+            const legendOrder = recent5Dates.map(d => d.substring(5));
 
+            // 图例索引：用于 tooltip 倒序排列（索引值越大日期越新）
             const legendIndex = {};
             legendOrder.forEach((name, i) => { legendIndex[name] = i; });
 
             const defaultTooltipFormatter = function(params) {
                 if (!params || !params.length) return '';
+                // 按日期倒序：索引大的（最近日期）排在前面
                 const sorted = params.slice().sort((a, b) =>
-                    (legendIndex[a.seriesName] ?? 9999) - (legendIndex[b.seriesName] ?? 9999)
+                    (legendIndex[b.seriesName] ?? -1) - (legendIndex[a.seriesName] ?? -1)
                 );
                 let result = `<div style="display: grid; grid-template-columns: max-content max-content; gap: 8px; align-items: center; min-width: 130px;">`;
                 result += `<div style="grid-column: 1 / -1; text-align: left; font-size: 13px; font-weight: bold; margin-bottom: 4px; color: #333;">${params[0].axisValue}</div>`;
