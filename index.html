@@ -12,7 +12,7 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             display: flex; flex-direction: column; align-items: center; overflow-x: hidden;
         }
-        .container { width: 100%; max-width: 1600px; }
+        .container { width: 100%; max-width: 1200px; }
 
         /* 顶部区域 */
         .top-header {
@@ -20,51 +20,16 @@
             margin-bottom: 12px;
             padding: 10px 0;
         }
+        .main-title {
+            color: #ff8f40;
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
         .update-time {
             color: #888;
             font-size: 12px;
             margin-top: 12px;
-        }
-
-        /* 标题与日期合并 */
-        .title-selector-wrapper {
-            display: inline-flex;
-            justify-content: center;
-            align-items: center;
-            position: relative;
-            background: #fff;
-            border: 1px solid rgba(255,143,64,0.35);
-            border-radius: 20px;
-            padding: 8px 20px;
-            margin-bottom: 12px;
-            box-shadow: 0 2px 8px rgba(255,143,64,0.08);
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-        .title-selector-wrapper:hover {
-            border-color: #ff8f40;
-            box-shadow: 0 4px 12px rgba(255,143,64,0.15);
-        }
-        .title-text {
-            color: #ff8f40;
-            font-size: 16px;
-            font-weight: bold;
-            pointer-events: none;
-        }
-        .dropdown-arrow {
-            width: 0; height: 0;
-            border-left: 5px solid transparent;
-            border-right: 5px solid transparent;
-            border-top: 5px solid #ff8f40;
-            margin-left: 8px;
-            pointer-events: none;
-        }
-        .date-select-overlay {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            opacity: 0;
-            cursor: pointer;
-            font-size: 16px;
         }
 
         /* 统计框 */
@@ -96,7 +61,11 @@
         }
         .table-scroll-box::-webkit-scrollbar { display: none; }
 
-        /* 表格 */
+        /* 表格 - 限制最大宽度并居中 */
+        .table-container {
+            max-width: 720px;
+            margin: 0 auto;
+        }
         table {
             width: 100%; border-collapse: separate; border-spacing: 0;
             font-size: 12px;
@@ -110,13 +79,13 @@
             font-size: 12px; position: sticky; top: 0; z-index: 2;
             border: 1px solid rgba(255, 255, 255, 0.3); box-shadow: 0 1px 0 #f5e8e0;
         }
-        th:first-child, td:first-child {
-            text-align: center; color: #ff8f40; position: sticky; left: 0; z-index: 1;
-            background-color: #ffffff; font-weight: bold;
+        /* 首列背景与其他列保持一致 */
+        td:first-child {
+            text-align: center; color: #ff8f40; font-weight: bold;
+            background-color: inherit;
         }
-        th:first-child { background-color: #ff8f40; color: #ffffff; z-index: 20; }
         tbody tr:nth-child(even) { background-color: #ff8f400a; }
-        tbody tr:nth-child(even) td:first-child { background-color: #fff6f0; }
+        tbody tr:nth-child(even) td:first-child { background-color: inherit; }
 
         .val-total { font-weight: bold; color: #333; }
         .val-people { font-weight: bold; color: #333; }
@@ -150,12 +119,7 @@
         <div id="main-content" style="display: none;">
             <!-- 顶部 -->
             <div class="top-header">
-                <div class="title-selector-wrapper">
-                    <span class="title-text" id="mergedTitle">团建数据表</span>
-                    <div class="dropdown-arrow"></div>
-                    <select id="dateSelector" class="date-select-overlay"></select>
-                </div>
-                <br>
+                <div class="main-title">团建数据表</div>
                 <div class="stats-wrap">
                     <div class="stats" id="tableSumStats"></div>
                 </div>
@@ -165,7 +129,7 @@
             <!-- 表格卡片：单独一行 -->
             <div class="card">
                 <h3 id="tableTitle">数据明细 (最近10条)</h3>
-                <div class="table-scroll-box">
+                <div class="table-scroll-box table-container">
                     <table id="dataTable">
                         <thead>
                             <tr>
@@ -239,6 +203,7 @@
         chartPeople.showLoading();
 
         let globalDataMap = {};
+        let latestDate = '';
 
         Papa.parse('power_data.csv?t=' + new Date().getTime(), {
             download: true,
@@ -271,12 +236,11 @@
 
                     if (!globalDataMap[formattedDate]) globalDataMap[formattedDate] = {};
 
-                    // 只保留总电力、总发电人数及其增幅字段（9列映射）
                     globalDataMap[formattedDate][timeHour] = {
                         totalPower: getNum(row["总电力值"]),
-                        totalDelta: getNum(row["增幅_2"]),          // 总电力增幅
+                        totalDelta: getNum(row["增幅_2"]),
                         totalPeople: getNum(row["总发电人数"]),
-                        totalPeopleDelta: getNum(row["增幅_3"])     // 总发电人数增幅
+                        totalPeopleDelta: getNum(row["增幅_3"])
                     };
                 });
 
@@ -285,24 +249,9 @@
                 }
 
                 const sortedDates = Array.from(datesSet).sort().reverse();
-                const selector = document.getElementById('dateSelector');
+                latestDate = sortedDates[0] || '';
 
-                sortedDates.forEach(date => {
-                    const opt = document.createElement('option');
-                    opt.value = date;
-                    opt.innerText = date;
-                    selector.appendChild(opt);
-                });
-
-                if (sortedDates.length > 0) {
-                    selector.value = sortedDates[0];
-                }
-
-                selector.addEventListener('change', (e) => {
-                    renderPage(e.target.value);
-                });
-
-                renderPage(selector.value);
+                renderPage(latestDate);
             },
             error: function(err) {
                 document.getElementById('loading').innerText = "加载数据失败，请确保 power_data.csv 在同目录下。";
@@ -317,10 +266,7 @@
             prevDateObj.setDate(prevDateObj.getDate() - 1);
             const prevDateStr = prevDateObj.toISOString().split('T')[0];
 
-            const shortDate = selectedDate.substring(5);
-            document.getElementById('mergedTitle').innerText = `团建数据表 · ${shortDate}`;
-
-            // === 顶部统计：总电力增幅（今日总电力增幅之和）与昨日对比 ===
+            // === 顶部统计：今日总电力增幅 ===
             let selectedTotalDelta = 0;
             let prevTotalDelta = 0;
 
@@ -346,7 +292,7 @@
             }
 
             document.getElementById('tableSumStats').innerHTML =
-                `总电力增幅：<span class="val-text">${formatW(selectedTotalDelta)}</span> ${diffStr}`;
+                `今日总电力增幅：<span class="val-text">${formatW(selectedTotalDelta)}</span> ${diffStr}`;
 
             document.getElementById('tableTitle').innerText = `数据明细 (最近10条)`;
             document.getElementById('chartTitleTotal').innerText = `总电力增幅`;
@@ -397,65 +343,59 @@
                 });
             }
 
-            // 构建两个图表的 series
+            // 获取近7日日期（包含选中日期在内，按日期倒序取7天）
+            const allDates = Object.keys(dataMap).sort().reverse();
+            const recent7Dates = allDates.slice(0, 7).reverse(); // 正序排列便于图例
+
+            // 构建两个图表的 series（仅近7日）
             const totalDeltaSeries = [];
             const peopleDeltaSeries = [];
 
-            // 当前选中日期（高亮）
-            if (dataMap[selectedDate]) {
-                const shortName = selectedDate.substring(5);
-                totalDeltaSeries.push({
-                    name: shortName, type: 'line', data: getSeriesData(selectedDate, 'totalDelta'),
-                    smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#ff8f40' }, lineStyle: { color: '#ff8f40', width: 2.5 }
-                });
-                peopleDeltaSeries.push({
-                    name: shortName, type: 'line', data: getSeriesData(selectedDate, 'totalPeopleDelta'),
-                    smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#ff8f40' }, lineStyle: { color: '#ff8f40', width: 2.5 }
-                });
-            }
-
-            // 前一天（粉色对比）
-            if (dataMap[prevDateStr]) {
-                const shortName = prevDateStr.substring(5);
-                totalDeltaSeries.push({
-                    name: shortName, type: 'line', data: getSeriesData(prevDateStr, 'totalDelta'),
-                    smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#FFB3C6' }, lineStyle: { color: '#FFB3C6', width: 2 }
-                });
-                peopleDeltaSeries.push({
-                    name: shortName, type: 'line', data: getSeriesData(prevDateStr, 'totalPeopleDelta'),
-                    smooth: false, symbol: 'circle', symbolSize: 4, itemStyle: { color: '#FFB3C6' }, lineStyle: { color: '#FFB3C6', width: 2 }
-                });
-            }
-
-            // 其他日期（灰色虚线）
-            const allDates = Object.keys(dataMap).sort();
-            allDates.forEach(date => {
-                if (date === selectedDate || date === prevDateStr) return;
+            recent7Dates.forEach(date => {
                 const shortName = date.substring(5);
+                const isSelected = date === selectedDate;
+                const isPrev = date === prevDateStr;
+
+                let color, width, symbol, lineType;
+                if (isSelected) {
+                    color = '#ff8f40'; width = 2.5; symbol = 'circle'; lineType = 'solid';
+                } else if (isPrev) {
+                    color = '#FFB3C6'; width = 2; symbol = 'circle'; lineType = 'solid';
+                } else {
+                    color = '#b0b0b0'; width = 1.5; symbol = 'none'; lineType = 'dashed';
+                }
+
                 totalDeltaSeries.push({
-                    name: shortName, type: 'line', data: getSeriesData(date, 'totalDelta'),
-                    smooth: false, symbol: 'none',
-                    itemStyle: { color: '#b0b0b0' },
-                    lineStyle: { color: '#b0b0b0', width: 1.5, type: 'dashed' },
-                    emphasis: { disabled: true }
+                    name: shortName,
+                    type: 'line',
+                    data: getSeriesData(date, 'totalDelta'),
+                    smooth: false,
+                    symbol: symbol,
+                    symbolSize: 4,
+                    itemStyle: { color: color },
+                    lineStyle: { color: color, width: width, type: lineType },
+                    emphasis: { disabled: !isSelected && !isPrev }
                 });
+
                 peopleDeltaSeries.push({
-                    name: shortName, type: 'line', data: getSeriesData(date, 'totalPeopleDelta'),
-                    smooth: false, symbol: 'none',
-                    itemStyle: { color: '#b0b0b0' },
-                    lineStyle: { color: '#b0b0b0', width: 1.5, type: 'dashed' },
-                    emphasis: { disabled: true }
+                    name: shortName,
+                    type: 'line',
+                    data: getSeriesData(date, 'totalPeopleDelta'),
+                    smooth: false,
+                    symbol: symbol,
+                    symbolSize: 4,
+                    itemStyle: { color: color },
+                    lineStyle: { color: color, width: width, type: lineType },
+                    emphasis: { disabled: !isSelected && !isPrev }
                 });
             });
 
-            // 图例顺序：所有日期倒序（与 series.name 一致）
-            const legendOrder = allDates.slice().reverse().map(d => d.substring(5));
+            // 图例顺序：近7日按日期正序
+            const legendOrder = recent7Dates.map(d => d.substring(5));
 
-            // 用于 tooltip 排序
             const legendIndex = {};
             legendOrder.forEach((name, i) => { legendIndex[name] = i; });
 
-            // 通用 tooltip 格式化（两个图表结构相同）
             const defaultTooltipFormatter = function(params) {
                 if (!params || !params.length) return '';
                 const sorted = params.slice().sort((a, b) =>
