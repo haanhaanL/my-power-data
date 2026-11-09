@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>团建数据 · 总电力&总发电人数</title>
+    <title>团建数据追踪</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     <script src="https://cdn.bootcdn.net/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
@@ -61,11 +61,7 @@
         }
         .table-scroll-box::-webkit-scrollbar { display: none; }
 
-        /* 表格 - 限制最大宽度并居中 */
-        .table-container {
-            max-width: 720px;
-            margin: 0 auto;
-        }
+        /* 表格 - 与容器等宽 */
         table {
             width: 100%; border-collapse: separate; border-spacing: 0;
             font-size: 12px;
@@ -79,13 +75,18 @@
             font-size: 12px; position: sticky; top: 0; z-index: 2;
             border: 1px solid rgba(255, 255, 255, 0.3); box-shadow: 0 1px 0 #f5e8e0;
         }
-        /* 首列背景与其他列保持一致 */
+        /* 首列（时间）：居中，仅文字颜色 */
         td:first-child {
             text-align: center; color: #ff8f40; font-weight: bold;
-            background-color: inherit;
+        }
+        /* 数据列：右对齐 */
+        td:not(:first-child) {
+            text-align: right;
+        }
+        th:not(:first-child) {
+            text-align: right;
         }
         tbody tr:nth-child(even) { background-color: #ff8f400a; }
-        tbody tr:nth-child(even) td:first-child { background-color: inherit; }
 
         .val-total { font-weight: bold; color: #333; }
         .val-people { font-weight: bold; color: #333; }
@@ -129,7 +130,7 @@
             <!-- 表格卡片：单独一行 -->
             <div class="card">
                 <h3 id="tableTitle">数据明细 (最近10条)</h3>
-                <div class="table-scroll-box table-container">
+                <div class="table-scroll-box">
                     <table id="dataTable">
                         <thead>
                             <tr>
